@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "clover-manga",
+  "private_key_id": "16ccff58ebd883ca313783868d0ff704dc8754df",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTrNAPdkuBNzg6\nBQoJH9ogtbi0vqKKB2+shse9GlZvAfa5X5d0ytuQdFknW2pHYJpLj1XLf4QcBsEB\nwvQeB9FcEdkU0aMSgVe4uYE5Uz5BSngukvrpundx0UvMFs2ihOmNlffa/XrQ1y7u\nO4m83nePvYmEafrG6HO87wJGk8bXRKMEUJFcQmrWhG4DZtH3ykGXpZ/Dpb3S+uR9\nOQKAs+a1FoQKq8oGVcczuSPOcenLRLKQsjRU/e5H6OH9rL5vJ6iLAe2zUQpZ4h70\nQxb2X+5di82jR8G8s2gs9y/2Uj3jWnVrGjv7PABe/ysJCMrORMv+Sl4m6XRicPlw\nJy4Bvo5PAgMBAAECggEAIeuBc9jbBJvasMF5+DhYdgFo1d3uofvLE3SNsWn1C9je\ntpnw5VBUmvNqDfqCL2n1j8IqV2/ZtbwHVcbt45oRHJXnmYR2g1KiwgFICe2i/kd2\nts/q0WWGGoEVimDlFvQBkSTFERypf6nb5WU5D0D/G9Odo9Bv1UwOr+oFDVZE+N3G\nPUL6MssrLbNGwJJDzmbfzrjLVuC9ysq2c0mXwe83B9yUzkvQmw/OMi9SQOcXmPDr\n/wz2B8Cx+2haWRvBE1CfPQWjAQtNR0/AjE1xqtzKgBW/4Riln2p/jnK4aUOiHxpj\nVisbANZdlzmHrbfFNhl4mRc62Kpi5GBXTT9T8zU0oQKBgQDraSpKjOWHIdRsOLcr\n3RF4Gh3xfURGKzgae+JZB0rdlOPHgevoYs7vLMd6SaVWJUiefaqgYvAYv+SIy1tX\n+3ifilRz+y23zIZy2fgyJH2gqLYvBpKEwa3CqQm6EzA69+XITtX3/UzTHBSGRibx\nm6d91uhR9hpVGvz6Ex1pe72UqQKBgQDmMDSTBBRxmn8MX/EdSczeOFXapdYdt9ZC\nhY34g4byPAue3wbLYt7ov9/bVqV3B5+e36t1NscNQMf/prAfPzu4w7ctNbeevNFp\nzD1j3JkwrV6EjsB7h1RCxKoQPQgXCWCgz6pfr0/LR1NkFbnyNgKxmHHL1voJB4Ik\nxEfl5+tuNwKBgBU31mL/zhRe/Tl/5yqh81gi6n4Ar22vqY/hiKZDnQDZ0aoC0NOS\nTFqMa7Je/vMDy0bVxtJL+J4SdbPKuIH2nYmruy70/crqOVgSw2cpmNUpP7p/Widz\nGYlJGSJXZmp6O5DRYkHG5+zDRCpSGmJ+iBs0ip4Qk5EGLLURkf4W9CB5AoGAaSGj\nIXI/lBMn65L2IJZQRz4bmB0dybzo0sEEsnf/7iqWdB0QkVu6yzq3Fwpf0BlfQcSO\nHp7CEr9/mLecwOi0chKRWsip8In0awmpEC70mFLWVFyOdNy+EzCXK4t0YnEZ/Nhb\nzA/ZtdIBuDhkEMeyO0KQ1rR8xhrzya8L12kxEckCgYEArsmLG9lSqJnT/5h2aouZ\nIxXHskNv70/a5Olrnndnprg2ZWGB0JKGFm7/j97GQ/DgTQThLV3OWVkEUd7Dda9H\nq5t0YvYjbjYcC/lZkt73cqGh3KIAJ+X+VmrtoGeSBKrxIq1D1xlWh1mTB9ouWYzK\nR2LQ9KfSRNesqxbM9Z4kUf0=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@clover-manga.iam.gserviceaccount.com",
+  "client_id": "100896216859800000279",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40clover-manga.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
