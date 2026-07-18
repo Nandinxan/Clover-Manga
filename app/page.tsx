@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock,
   Sparkles,
+  Search, // ← Томруулдаг шилний дүрсийг нэмж импортлов
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -50,7 +51,6 @@ export default function Home() {
 
   useEffect(() => {
     setIsMounted(true);
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -94,7 +94,6 @@ export default function Home() {
         setBanners(bannerList);
       } catch (error) { console.error(error); }
     };
-
     // 3. Эрэлттэй мангуудыг шүүж унших (placement == trending)
     const fetchTrending = async () => {
       try {
@@ -122,7 +121,6 @@ export default function Home() {
         setTrendingManga(list);
       } catch (error) { console.error(error); }
     };
-
     // 4. Санал болгох мангуудыг шүүж унших (placement == recommended)
     const fetchRecommended = async () => {
       try {
@@ -177,7 +175,6 @@ export default function Home() {
         setFreeManga(list);
       } catch (error) { console.error(error); }
     };
-
     // 6. Саяхан нэмэгдсэн бүлгүүдийг унших логик
     const fetchRecentUpdates = async () => {
       try {
@@ -236,6 +233,7 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
   // Банерын автомат солилт
   useEffect(() => {
     if (banners.length === 0) return;
@@ -251,7 +249,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#0B0F14] text-white overflow-x-hidden">
-      {/* Header - Утас, компьютер дээр хэмжээ нь автоматаар таарна */}
+      {/* Header - Утас, computer дээр хэмжээ нь автоматаар таарна */}
       <header className="sticky top-0 z-50 border-b border-[#1E2530] bg-[#0B0F14]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
           {/* Зүүн талын Лого хэсэг */}
@@ -262,21 +260,27 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Баруун талын Хайлт болон Хэрэглэгчийн цэс */}
-          <div className="flex items-center gap-3 md:gap-4">
-            <SearchModal />
+          {/* Баруун талын Хайлт болон Хэрэглэгчийн цэс (Шамбааралдахгүй болгож зассан) */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            
+            {/* ХАЙЛТ: Утас дээр зөвхөн томруулдаг шил болно */}
+            <div className="text-gray-300 hover:text-green-400 transition cursor-pointer p-2 rounded-xl hover:bg-[#141922]">
+              <SearchModal /> 
+            </div>
+
             {!user ? (
               <Link href="/login" className="rounded-xl bg-green-500 px-4 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-black transition hover:bg-green-400">Нэвтрэх</Link>
             ) : (
               <div className="relative">
-                <button onClick={() => setOpenMenu(!openMenu)} className="flex items-center gap-2 md:gap-3 rounded-xl border border-[#232A35] bg-[#141922] px-3 md:px-4 py-1.5 md:py-2 transition hover:border-green-500 text-xs md:text-sm">
-                  <CircleUser size={20} className="text-gray-300 md:w-[22px] md:h-[22px]" />
-                  <span className="font-medium max-w-[80px] md:max-w-none truncate">{user.displayName || "Хэрэглэгч"}</span>
-                  <ChevronDown size={16} className={`transition ${openMenu ? "rotate-180" : ""}`} />
+                {/* ХЭРЭГЛЭГЧ: Утсан дээр нэр нуугдаж зөвхөн хүний дүрс харагдана */}
+                <button onClick={() => setOpenMenu(!openMenu)} className="flex items-center gap-2 rounded-xl border border-[#232A35] bg-[#141922] p-2 md:px-4 md:py-2 transition hover:border-green-500 text-xs md:text-sm active:scale-95">
+                  <CircleUser size={22} className="text-gray-300 md:w-[22px] md:h-[22px]" />
+                  <span className="hidden md:block font-medium truncate max-w-[120px]">{user.displayName || "Хэрэглэгч"}</span>
+                  <ChevronDown size={16} className={`hidden md:block transition duration-200 ${openMenu ? "rotate-180" : ""}`} />
                 </button>
                 {openMenu && (
                   <div className="absolute right-0 mt-3 w-48 md:w-52 rounded-2xl border border-[#232A35] bg-[#141922] p-2 md:p-3 shadow-2xl z-50">
-                    <Link href="/account" className="flex items-center justify-between rounded-xl px-3 py-2.5 transition hover:bg-[#232A35]">
+                    <Link href="/account" onClick={() => setOpenMenu(false)} className="flex items-center justify-between rounded-xl px-3 py-2.5 transition hover:bg-[#232A35]">
                       <div className="flex items-center gap-3">
                         <User size={18} className="text-gray-300" />
                         <span>Миний аккаунт</span>
@@ -295,46 +299,57 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Banner - Төхөөрөмжөөс хамаарч өндөр нь автоматаар өөрчлөгдөнө */}
-      <section className="mx-auto mt-4 md:mt-6 max-w-7xl px-4 md:px-8">
-        <div className="relative overflow-hidden rounded-[24px] md:rounded-[32px] border border-white/[0.04] bg-[#0B0F14] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-          {/* Банерын өндрийг утас, компьютерт тааруулж зассан */}
-          <div className="h-[200px] sm:h-[280px] md:h-[420px] lg:h-[480px]">
-            {banners && banners.length > 0 && banners[current] && (
-              <img src={banners[current].image} alt={banners[current].title} className={`h-full w-full object-cover transition-all duration-700 ease-in-out ${fade ? "opacity-45 scale-100 blur-0" : "opacity-0 scale-102 blur-sm"}`} />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0B0F14] via-[#0B0F14]/90 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F14] via-transparent to-transparent" />
-          </div>
+      {/* =======================================================
+         БАННЕР ХЭСЭГ (Өргөнийг бага зэрэг тэлж нэмсэн, зөвхөн нэртэй)
+         ======================================================= */}
+      <section className="mx-auto mt-4 md:mt-6 max-w-[1400px] px-2 md:px-4">
+        {banners && banners.length > 0 && banners[current] && (
+          <div 
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.history.replaceState({ usr: { from: "/" } }, "");
+                router.push(`/manga/${banners[current].id}?from=all`);
+              }
+            }}
+            className="relative overflow-hidden rounded-[24px] md:rounded-[32px] border border-white/[0.04] bg-[#0B0F14] shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer group active:scale-[0.99] transition-transform duration-200"
+          >
+            {/* Банерын зургийн хэмжээ ба уусгалт */}
+            <div className="h-[200px] sm:h-[280px] md:h-[420px] lg:h-[480px] w-full relative">
+              <img 
+                src={banners[current].image} 
+                alt={banners[current].title} 
+                className={`h-full w-full object-cover transition-all duration-700 ease-in-out ${fade ? "opacity-100 scale-100 blur-0" : "opacity-0 scale-102 blur-sm"}`} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F14] via-[#0B0F14]/40 to-transparent" />
+              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
+            </div>
 
-          {/* Текстүүдийн хэмжээг дэлгэц дагаж уян хатан өөрчлөгддөг болгосон */}
-          <div className={`absolute left-5 md:left-16 top-1/2 max-w-xs sm:max-w-md md:max-w-xl -translate-y-1/2 transition-all duration-500 z-10 ${fade ? "translate-y-[-50%] opacity-100 blur-0" : "translate-y-[-46%] opacity-0 blur-sm"}`}>
-            <span className="rounded-xl bg-green-500/10 border border-green-500/20 px-2.5 py-1 text-[9px] md:text-[10px] font-bold text-green-400 uppercase tracking-widest backdrop-blur-sm">Онцлох manga</span>
-            {banners && banners.length > 0 && banners[current] && (
-              <>
-                <h1 className="mt-2 md:mt-4 text-xl sm:text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white line-clamp-1" style={{ fontFamily: "'Futura', 'Trebuchet MS', sans-serif" }}>{banners[current].title}</h1>
-                <p className="mt-1 text-xs md:text-xl font-bold text-green-400 tracking-wide truncate">{banners[current].subtitle}</p>
-                <p className="mt-2 text-[11px] md:text-xs lg:text-sm leading-5 md:leading-6 text-gray-400 font-medium max-w-[240px] sm:max-w-xs md:max-w-md line-clamp-2 sm:line-clamp-3 md:line-clamp-none">{banners[current].description}</p>
-              </>
-            )}
-            <div className="mt-4 md:mt-6 flex gap-4">
-              <button onClick={() => { if (typeof window !== "undefined" && banners && banners.length > 0 && banners[current]) { window.history.replaceState({ usr: { from: "/" } }, ""); router.push(`/manga/${banners[current].id}?from=all`); } }} className="rounded-xl bg-green-500 px-5 md:px-7 py-2 md:py-3 text-[11px] md:text-xs lg:text-sm font-black text-black transition-all duration-300 hover:scale-[1.03] hover:bg-green-400 shadow-lg shadow-green-500/20 uppercase tracking-wider font-bold">Унших</button>
+            {/* ЗӨВХӨН МАНГАНЫ НЭР (Тайлбар, товчлуургүй) */}
+            <div className="absolute inset-0 flex items-center justify-center p-4 z-10">
+              <h1 
+                className={`text-base sm:text-2xl md:text-4xl lg:text-5xl font-black text-white text-center bg-[#0B0F14]/70 border border-white/10 px-5 py-2.5 sm:px-8 sm:py-4 rounded-2xl shadow-2xl backdrop-blur-md transition-all duration-500 group-hover:text-green-400 group-hover:scale-105 max-w-[85%] truncate ${fade ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
+                style={{ fontFamily: "'Futura', 'Trebuchet MS', sans-serif" }}
+              >
+                {banners[current].title}
+              </h1>
+            </div>
+            {/* Банерын зүүн ба баруун товчлуурууд */}
+            <button type="button" onClick={(e) => { e.stopPropagation(); setCurrent((prev) => (banners.length > 0 ? (prev === 0 ? banners.length - 1 : prev - 1) : 0)); }} className="hidden md:flex absolute left-5 top-1/2 -translate-y-1/2 z-20 h-11 w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-lg font-light">←</span></button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); setCurrent((prev) => (banners.length > 0 ? (prev + 1) % banners.length : 0)); }} className="hidden md:flex absolute right-5 top-1/2 -translate-y-1/2 z-20 h-11 w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-lg font-light">→</span></button>
+            
+            {/* Банерын доод талын цэгэн индикаторууд */}
+            <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+              {banners && banners.map((_, index) => (
+                <button key={`indicator-${index}`} type="button" onClick={(e) => { e.stopPropagation(); setCurrent(index); }} className={`transition-all duration-500 ${current === index ? "h-1.5 w-6 md:w-7 rounded-full bg-green-500" : "h-1.5 w-1.5 rounded-full bg-white/20"}`} />
+              ))}
             </div>
           </div>
-          {/* Банерын зүүн ба баруун товчлуурууд */}
-          <button type="button" onClick={() => setCurrent((prev) => (banners.length > 0 ? (prev === 0 ? banners.length - 1 : prev - 1) : 0))} className="hidden md:flex absolute left-5 top-1/2 -translate-y-1/2 z-20 h-11 w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-lg font-light">←</span></button>
-          <button type="button" onClick={() => setCurrent((prev) => (banners.length > 0 ? (prev + 1) % banners.length : 0))} className="hidden md:flex absolute right-5 top-1/2 -translate-y-1/2 z-20 h-11 w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-lg font-light">→</span></button>
-          
-          {/* Банерын доод талын цэгэн индикаторууд */}
-          <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-            {banners && banners.map((_, index) => (
-              <button key={`indicator-${index}`} type="button" onClick={() => setCurrent(index)} className={`transition-all duration-500 ${current === index ? "h-1.5 w-6 md:w-7 rounded-full bg-green-500" : "h-1.5 w-1.5 rounded-full bg-white/20"}`} />
-            ))}
-          </div>
-        </div>
+        )}
       </section>
 
-      {/* Үргэлжлүүлэх (History) хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
+      {/* =======================================================
+         Үргэлжлүүлэх (History) хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       {isMounted && user && historyList !== undefined && (
         <section className="mx-auto mt-12 md:mt-16 max-w-7xl px-4 sm:px-6 md:px-8">
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
@@ -344,7 +359,7 @@ export default function Home() {
           {/* Зургууд хажуу тийшээ гүйдэг контейнер */}
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x scroll-smooth md:grid md:grid-cols-3 md:gap-6 md:overflow-x-visible md:pb-0">
             {historyList.length > 0 ? (
-              historyList.slice(0, 3).map((manga) => {
+              historyList.slice(0, 6).map((manga) => {
                 const currentChapterNum = parseInt(manga.lastChapter.replace(/[^0-9]/g, "")) || 1;
                 const totalChapters = fallbackMangas[manga.id]?.chapters || 100;
                 const calculatedProgress = Math.min(Math.round((currentChapterNum / totalChapters) * 100), 100);
@@ -353,7 +368,7 @@ export default function Home() {
                     <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={manga.coverUrl || "/placeholder-cover.jpg"} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                     <div className="p-3 md:p-5 flex flex-col flex-1 justify-between bg-[#141922]">
                       <div>
-                        <h3 className="text-xs md:text-xl font-bold truncate text-gray-200 group-hover:text-green-500 transition-colors">{manga.title}</h3>
+                        <h3 className="text-xs md:text-xl font-bold truncate text-gray-200 group-hover:text-green-400 transition-colors">{manga.title}</h3>
                         <p className="mt-1 text-[10px] md:text-sm text-gray-400 font-medium">{manga.lastChapter}</p>
                       </div>
                       <div className="mt-3">
@@ -365,7 +380,7 @@ export default function Home() {
                 );
               })
             ) : (
-              [1, 2, 3].map((idx) => (
+              [1, 2, 3, 4, 5, 6].map((idx) => (
                 <div key={`fallback-card-${idx}`} className="flex-none w-[160px] sm:w-[200px] md:w-full snap-start overflow-hidden rounded-2xl border border-[#222933] bg-[#141922] flex flex-col h-full">
                   <div className="aspect-[3/4] w-full bg-[#232A35]/20 relative overflow-hidden animate-pulse" />
                   <div className="p-3 md:p-5 flex flex-col flex-1 justify-between bg-[#141922] animate-pulse">
@@ -378,8 +393,9 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      {/* Эрэлттэй хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
+      {/* =======================================================
+         Эрэлттэй хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       <section className="mx-auto mt-16 md:mt-20 max-w-7xl px-4 sm:px-6 md:px-8">
         <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <div><h2 className="text-xl md:text-3xl font-bold tracking-tight">Эрэлттэй</h2></div>
@@ -393,7 +409,7 @@ export default function Home() {
                 <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
                 <div className="p-2.5 md:p-5 flex flex-col flex-1 justify-between bg-[#141922]">
                   <div>
-                    <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-500 transition-colors duration-200 tracking-wide">{manga.title}</h3>
+                    <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-400 transition-colors duration-200 tracking-wide">{manga.title}</h3>
                     <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">{manga.chapter}</p>
                   </div>
                   <p className="mt-1 text-[9px] md:text-xs text-gray-500 font-medium truncate">{manga.tags}</p>
@@ -413,7 +429,10 @@ export default function Home() {
           )}
         </div>
       </section>
-      {/* Санал болгох хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
+
+      {/* =======================================================
+         Санал болгох хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       <section className="mx-auto mt-16 md:mt-20 max-w-7xl px-4 sm:px-6 md:px-8">
         <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <div><h2 className="text-xl md:text-3xl font-bold tracking-tight">Санал болгох</h2></div>
@@ -427,7 +446,7 @@ export default function Home() {
                 <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
                 <div className="p-2.5 md:p-5 flex flex-col flex-1 justify-between bg-[#141922]">
                   <div>
-                    <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-500 transition-colors duration-200 tracking-wide">{manga.title}</h3>
+                    <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-400 transition-colors duration-200 tracking-wide">{manga.title}</h3>
                     <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">{manga.chapter}</p>
                   </div>
                   <p className="mt-1 text-[9px] md:text-xs text-gray-500 font-medium truncate">{manga.tags}</p>
@@ -447,8 +466,9 @@ export default function Home() {
           )}
         </div>
       </section>
-
-      {/* Саяхан нэмэгдсэн хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
+      {/* =======================================================
+         Саяхан нэмэгдсэн хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       <section className="mx-auto mt-16 md:mt-20 max-w-7xl px-4 sm:px-6 md:px-8">
         <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <div><h2 className="text-xl md:text-3xl font-bold tracking-tight">Саяхан нэмэгдсэн</h2></div>
@@ -462,59 +482,30 @@ export default function Home() {
                 <div className="h-16 w-11 md:h-24 md:w-16 flex-shrink-0 overflow-hidden rounded-xl bg-[#232A35]/40 border border-white/5 shadow-inner"><img src={manga.coverUrl} alt={manga.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-xs md:text-xl font-bold text-gray-200 group-hover:text-green-400 transition-colors duration-200 truncate tracking-wide">{manga.title}</h3>
-                  <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">{manga.chapter}</p>
-                  <p className="mt-0.5 text-[9px] md:text-xs text-gray-500 font-medium">{manga.time}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-green-500 font-bold">{manga.chapter}</span>
+                    <span className="text-[10px] text-gray-500">• {manga.time}</span>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-white/5 bg-[#0B0F14]/60 px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold text-green-400 group-hover:bg-green-500 group-hover:text-black transition-all duration-300 flex-shrink-0 uppercase tracking-wider">Унших</div>
               </div>
             ))
           ) : (
-            [1, 2, 3, 4, 5, 6].map((idx: number) => (
-              <div key={`recent-skeleton-${idx}`} className="flex-none w-[280px] sm:w-[320px] md:w-full snap-start animate-pulse flex items-center gap-4 rounded-2xl border border-white/[0.03] bg-[#141922]/30 p-3 md:p-5">
-                <div className="h-16 w-11 md:h-24 md:w-16 bg-[#232A35]/40 rounded-xl flex-shrink-0" />
-                <div className="flex-1 space-y-2"><div className="h-4 bg-[#232A35]/50 rounded w-1/3" /><div className="h-3 bg-[#232A35]/30 rounded w-1/6" /><div className="h-3 bg-[#232A35]/20 rounded w-1/12" /></div>
-                <div className="h-6 bg-[#232A35]/30 rounded-xl w-14 flex-shrink-0" />
+            [1, 2, 3, 4].map((idx) => (
+              <div key={`recent-skeleton-${idx}`} className="flex-none w-[280px] sm:w-[320px] md:w-full snap-start flex items-center gap-4 rounded-2xl border border-[#222933] bg-[#141922] p-3 md:p-5 animate-pulse">
+                <div className="h-16 w-11 md:h-24 md:w-16 bg-[#232A35]/30 rounded-xl flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-[#232A35]/50 rounded w-3/4" />
+                  <div className="h-3 bg-[#232A35]/30 rounded w-1/4" />
+                </div>
               </div>
             ))
           )}
         </div>
       </section>
-      {/* Дууссан хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
-      <section className="mx-auto mt-16 md:mt-20 max-w-7xl px-4 sm:px-6 md:px-8">
-        <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
-          <div><h2 className="text-xl md:text-3xl font-bold tracking-tight">Дууссан</h2></div>
-          <Link href="/completed" className="rounded-xl border border-[#232A35] bg-[#141922] p-2 text-gray-400 hover:border-green-500 hover:text-green-500 transition active:scale-95 flex items-center justify-center shadow-lg"><ChevronRight size={20} /></Link>
-        </div>
-        {/* Зургууд хажуу тийшээ гүйдэг контейнер */}
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x scroll-smooth md:grid md:grid-cols-6 md:gap-6 md:overflow-x-visible md:pb-0">
-          {completedManga && completedManga.length > 0 ? (
-            completedManga.slice(0, 6).map((manga) => (
-              <div key={`completed-card-${manga.id}`} onClick={() => { if (typeof window !== "undefined") { window.history.replaceState({ usr: { from: "/" } }, ""); } router.push(`/manga/${manga.id}?from=all`); }} className="flex-none w-[130px] sm:w-[160px] md:w-full snap-start group overflow-hidden rounded-2xl border border-[#222933] bg-[#141922] transition duration-300 hover:border-green-500 cursor-pointer flex flex-col h-full hover:shadow-[0_10px_25px_rgba(0,0,0,0.3)] animate-fadeIn">
-                <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
-                <div className="p-2.5 md:p-5 flex flex-col flex-1 justify-between bg-[#141922]">
-                  <div>
-                    <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-500 transition-colors duration-200 tracking-wide">{manga.title}</h3>
-                    <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">Дууссан</p>
-                  </div>
-                  <p className="mt-1 text-[9px] md:text-xs text-gray-500 font-medium truncate">{manga.genre}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-           Array.from({ length: 6 }).map((_, idx) => (
-              <div key={`completed-skeleton-${idx}`} className="flex-none w-[130px] sm:w-[160px] md:w-full snap-start animate-pulse border border-[#222933] bg-[#141922] rounded-2xl overflow-hidden flex flex-col h-full">
-                <div className="aspect-[3/4] w-full bg-[#232A35]/30" />
-                <div className="p-2.5 md:p-5 space-y-3 flex-1 flex flex-col justify-between">
-                  <div className="space-y-2"><div className="h-4 bg-[#232A35]/50 rounded w-3/4" /><div className="h-3 bg-[#232A35]/30 rounded w-1/4" /></div>
-                  <div className="h-3 bg-[#232A35]/20 rounded w-1/2" />
-                </div>
-              </div>
-            ))
-          )} 
-        </div>
-      </section>
 
-      {/* 🚀 Үнэгүй манга харуулах хэсэг - Манга сайт шиг арагшаа гүйдэг болгосон */}
+      {/* =======================================================
+         🚀 6. Үнэгүй манга харуулах хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       <section className="mx-auto mt-16 md:mt-20 max-w-7xl px-4 sm:px-6 md:px-8">
         <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex items-center gap-2">
@@ -569,7 +560,9 @@ export default function Home() {
           )}
         </div>
       </section>
-      {/* Footer - Төхөөрөмжөөс хамаарч хэмжээ, байршил нь автоматаар таарна */}
+      {/* =======================================================
+         7. Footer хэсэг - Хэвээр үлдээв
+         ======================================================= */}
       <footer className="mt-16 md:mt-20 border-t border-[#1E2530] bg-[#0B0F14]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 py-8 md:py-12">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row text-center md:text-left">
@@ -580,7 +573,7 @@ export default function Home() {
               </Link>
               <p className="mt-3 max-w-md text-gray-400 text-xs md:text-sm font-medium">Манга унших чинь нэг төрлийн ажил за юу!</p>
             </div>
-            {/* Цэсний хэсэг (Утас дээр эмх цэгцтэй харагдахаар уян хатан болгов) */}
+            {/* Цэсний хэсэг */}
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs md:text-sm text-gray-400 font-medium">
               <button type="button" onClick={() => router.push("/all-manga")} className="hover:text-green-500 transition">Бүх манга</button>
               <button type="button" onClick={() => router.push("/get-access")} className="hover:text-green-500 transition">Эрх авах</button>
