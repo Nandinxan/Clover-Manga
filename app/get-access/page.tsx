@@ -17,7 +17,6 @@ import {
   Sparkles,
 } from "lucide-react";
 
-// Багцын бүтцийг тодорхойлох интерфэйс
 interface Plan {
   id: string;
   title: string;
@@ -25,11 +24,9 @@ interface Plan {
   badge?: string;
   features: string[];
 }
-
 export default function GetAccessPage() {
   const router = useRouter();
 
-  // Төлөвүүд (States)
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [purchaseType, setPurchaseType] = useState<"premium" | "coin" | "">("");
   const [showPopup, setShowPopup] = useState(false);
@@ -37,7 +34,6 @@ export default function GetAccessPage() {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [alertPopup, setAlertPopup] = useState({ show: false, message: "" });
 
-  // Ногоон дизайны зураг дээрх шиг шинэчилсэн багцууд (6 сар орсон)
   const premiumPlans: Plan[] = [
     {
       id: "30_days",
@@ -59,8 +55,6 @@ export default function GetAccessPage() {
       features: ["Бүх манхва унших", "Чанартай зураглал", "15% хэмнэлт"],
     },
   ];
-
-  // Койн авах багцууд
   const coinPlans: Plan[] = [
     {
       id: "100_coin",
@@ -82,14 +76,12 @@ export default function GetAccessPage() {
       features: ["1000 Coin","Дурын 100 бүлэг нээж унших" ],
     },
   ];
-// Дансны дугаар хуулах функц
+
   const handleCopyAccount = () => {
     navigator.clipboard.writeText("740005005692259277");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  // Firestore руу худалдан авалтын хүсэлт хадгалах функц
   const handlePurchase = async () => {
     const user = auth.currentUser;
 
@@ -119,27 +111,23 @@ export default function GetAccessPage() {
       alert("Хүсэлт илгээхэд алдаа гарлаа. Дахин оролдоно уу.");
     }
   };    
+
   return (
     <main className="min-h-screen bg-[#090909] text-white px-5 py-6">
       <div className="mx-auto max-w-6xl">
         
-               {/* ================= HEADER (Үзэмжтэй, тод том голлуулсан дизайн) ================= */}
         <div className="relative mb-8 flex items-center justify-between border-b border-[#232A35]/40 pb-5">
-          {/* Баруун талын X товчтой тэнцэх хоосон зай үүсгэж гарчгийг яг төвд нь голлуулна */}
           <div className="w-10 h-10 flex-shrink-0" />
 
           <div className="text-center flex-1">
-            {/* 🟩 ШИНЭЧЛЭВ: Үсгийн хэмжээг text-base-ээс text-xl болгож томруулав */}
             <h1 className="text-xl font-black tracking-wide text-gray-100 uppercase">
               Эрх авах
             </h1>
-            {/* 🟩 ШИНЭЧЛЭВ: Дэд текстийг илүү уншигдахуйц text-xs болгов */}
             <p className="mt-1 text-xs text-gray-400 font-medium">
               Өөрт тохирох эрхээ сонгоно уу.
             </p>
           </div>
 
-          {/* 🟩 ШИНЭЧЛЭВ: Товчлуурын хэмжээ болон Icon-ийг илүү үзэмжтэй том болгов */}
           <button
             onClick={() => router.push("/")}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#232A35] bg-[#141922] text-gray-400 transition-all hover:border-gray-500 hover:text-white active:scale-95 flex-shrink-0"
@@ -147,15 +135,12 @@ export default function GetAccessPage() {
             <X size={18} />
           </button>
         </div>
-
-
-        {/* ================= PREMIUM PLANS ================= */}
         <div className="mb-8 flex items-center gap-2">
           <Crown className="text-emerald-500" size={18} />
           <span className="text-sm font-bold tracking-wider text-emerald-500">PREMIUM ЭРХ</span>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 md:gap-6">
           {premiumPlans.map((plan) => (
             <div
               key={plan.id}
@@ -163,38 +148,38 @@ export default function GetAccessPage() {
                 setSelectedPlan(plan);
                 setPurchaseType("premium");
               }}
-              className={`relative overflow-hidden rounded-3xl border-2 bg-[#111111] p-7 text-left transition-all duration-300 cursor-pointer ${
+              className={`relative overflow-hidden rounded-2xl md:rounded-3xl border-2 bg-[#111111] p-3 sm:p-5 md:p-7 text-left transition-all duration-300 cursor-pointer ${
                 selectedPlan?.id === plan.id
                   ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,.30)]"
                   : "border-emerald-500/20 hover:border-emerald-500"
               }`}
             >
               {plan.badge && (
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-xl bg-emerald-500 px-4 py-1 text-[11px] font-bold text-white">
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-xl bg-emerald-500 px-2 py-0.5 sm:px-4 sm:py-1 text-[8px] sm:text-[11px] font-bold text-white whitespace-nowrap">
                   {plan.badge}
                 </div>
               )}
 
-              <div className="mt-5 flex justify-center">
-                <div className="rounded-full bg-emerald-500/10 p-3">
-                  <Crown size={28} className="text-emerald-500" />
+              <div className="mt-3 sm:mt-5 flex justify-center">
+                <div className="rounded-full bg-emerald-500/10 p-1.5 sm:p-3">
+                  <Crown size={18} className="text-emerald-500 sm:w-[28px] sm:h-[28px]" />
                 </div>
               </div>
 
-              <h2 className="mt-6 text-center text-3xl font-black">{plan.title}</h2>
-              <p className="mt-3 text-center text-5xl font-black text-white">{plan.price}</p>
+              <h2 className="mt-4 sm:mt-6 text-center text-xs sm:text-2xl md:text-3xl font-black">{plan.title}</h2>
+              <p className="mt-1 sm:mt-3 text-center text-sm sm:text-4xl md:text-5xl font-black text-white">{plan.price}</p>
 
-              <div className="mt-8 space-y-4">
+              <div className="mt-4 sm:mt-8 space-y-2 sm:space-y-4">
                 {plan.features.map((feature) => (
-                  <div key={feature} className="flex items-center gap-3">
-                    <ShieldCheck size={18} className="text-emerald-500" />
-                    <span className="text-sm text-gray-300">{feature}</span>
+                  <div key={feature} className="flex items-center gap-1.5 sm:gap-3">
+                    <ShieldCheck size={14} className="text-emerald-500 sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                    <span className="text-[10px] sm:text-sm text-gray-300 truncate">{feature}</span>
                   </div>
                 ))}
               </div>
               <button
                 type="button"
-                className={`mt-8 h-12 w-full rounded-xl font-bold transition ${
+                className={`mt-4 sm:mt-8 h-8 sm:h-12 w-full rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-bold transition ${
                   selectedPlan?.id === plan.id
                     ? "bg-emerald-500 text-white"
                     : "bg-[#202020] text-gray-300 hover:bg-emerald-500 hover:text-white"
@@ -205,14 +190,12 @@ export default function GetAccessPage() {
             </div>
           ))}
         </div>
-
-        {/* ================= COIN PLANS ================= */}
         <div className="mt-12 mb-8 flex items-center gap-2">
           <Coins size={18} className="text-emerald-500" />
           <span className="text-sm font-bold tracking-wider text-emerald-500">COIN АВАХ</span>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 md:gap-6">
           {coinPlans.map((coin) => (
             <div
               key={coin.id}
@@ -220,38 +203,38 @@ export default function GetAccessPage() {
                 setSelectedPlan(coin);
                 setPurchaseType("coin");
               }}
-              className={`relative overflow-hidden rounded-3xl border-2 bg-[#111111] p-7 text-left transition-all duration-300 cursor-pointer ${
+              className={`relative overflow-hidden rounded-2xl md:rounded-3xl border-2 bg-[#111111] p-3 sm:p-5 md:p-7 text-left transition-all duration-300 cursor-pointer ${
                 selectedPlan?.id === coin.id
                   ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,.30)]"
                   : "border-emerald-500/20 hover:border-emerald-500"
               }`}
             >
               {coin.badge && (
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-xl bg-emerald-500 px-4 py-1 text-[11px] font-bold text-white">
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-xl bg-emerald-500 px-2 py-0.5 sm:px-4 sm:py-1 text-[8px] sm:text-[11px] font-bold text-white whitespace-nowrap">
                   {coin.badge}
                 </div>
               )}
 
-              <div className="mt-5 flex justify-center">
-                <div className="rounded-full bg-emerald-500/10 p-3">
-                  <Coins size={28} className="text-emerald-500" />
+              <div className="mt-3 sm:mt-5 flex justify-center">
+                <div className="rounded-full bg-emerald-500/10 p-1.5 sm:p-3">
+                  <Coins size={18} className="text-emerald-500 sm:w-[28px] sm:h-[28px]" />
                 </div>
               </div>
 
-              <h2 className="mt-6 text-center text-3xl font-black">{coin.title}</h2>
-              <p className="mt-3 text-center text-5xl font-black text-white">{coin.price}</p>
+              <h2 className="mt-4 sm:mt-6 text-center text-xs sm:text-2xl md:text-3xl font-black">{coin.title}</h2>
+              <p className="mt-1 sm:mt-3 text-center text-sm sm:text-4xl md:text-5xl font-black text-white">{coin.price}</p>
 
-              <div className="mt-8 space-y-4">
+              <div className="mt-4 sm:mt-8 space-y-2 sm:space-y-4">
                 {coin.features.map((feature) => (
-                  <div key={feature} className="flex items-center gap-3">
-                    <ShieldCheck size={18} className="text-emerald-500" />
-                    <span className="text-sm text-gray-300">{feature}</span>
+                  <div key={feature} className="flex items-center gap-1.5 sm:gap-3">
+                    <ShieldCheck size={14} className="text-emerald-500 sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                    <span className="text-[10px] sm:text-sm text-gray-300 truncate">{feature}</span>
                   </div>
                 ))}
               </div>
               <button
                 type="button"
-                className={`mt-8 h-12 w-full rounded-xl font-bold transition ${
+                className={`mt-4 sm:mt-8 h-8 sm:h-12 w-full rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-bold transition ${
                   selectedPlan?.id === coin.id
                     ? "bg-emerald-500 text-white"
                     : "bg-[#202020] text-gray-300 hover:bg-emerald-500 hover:text-white"
@@ -262,7 +245,6 @@ export default function GetAccessPage() {
             </div>
           ))}
         </div>
-               {/* ================= НЭГДСЭН ХУДАЛДАН АВАХ ТОВЧ (Хавтгай минималист ногоон товч) ================= */}
         <button
           onClick={handlePurchase}
           disabled={!selectedPlan}
@@ -272,14 +254,11 @@ export default function GetAccessPage() {
           ХУДАЛДАЖ АВАХ
         </button>
 
-        {/* ================= ТӨЛБӨРИЙН МЭДЭЭЛЛИЙН ПОПАП ЦОНХ ================= */}
         {showPopup && selectedPlan && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
             <div className="relative w-full max-w-sm rounded-2xl border border-[#232A35] bg-[#141922] p-5 text-center shadow-xl text-xs flex flex-col max-h-[85vh] overflow-y-auto style-scrollbar">
 
-              {/* 🟩 ШИНЭЧЛЭВ: Зүүн талын сумыг устгаж, Мэдээлэл гарчгийг яг голд нь голлуулав */}
               <div className="flex items-center justify-between mb-2">
-                {/* Баруун талын X товчтой тэнцэх хоосон зайг үүсгэж голлуулж байна */}
                 <div className="w-7 h-7" />
                 
                 <h2 className="text-lg font-black tracking-wide text-gray-200 uppercase flex-1 text-center">
@@ -298,7 +277,6 @@ export default function GetAccessPage() {
                 </button>
               </div>
 
-              {/* Сонгосон багцын тод ногоон үнийн дүн */}
               <div className="text-center font-black text-green-500 text-sm tracking-wide mt-2 uppercase">
                 {selectedPlan.id.includes("30") && `1 САР — ${selectedPlan.price}`}
                 {selectedPlan.id.includes("90") && `3 САР — ${selectedPlan.price}`}
@@ -309,11 +287,9 @@ export default function GetAccessPage() {
               <p className="mt-4 text-[9px] text-gray-500 font-bold uppercase tracking-wider text-center">
                 Дараах дансанд шилжүүлнэ үү
               </p>
-
-              {/* Дансны мэдээлэл харуулах хэсэг */}
               <div className="mt-3 space-y-3 bg-[#0B0F14]/60 p-4 rounded-xl border border-[#232A35]/60 text-left">
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-gray-500 font-medium">Банкны нэр</span>
+                  <span className="text-gray-500 font-medium">Bankны нэр</span>
                   <span className="text-gray-200 font-bold">Хаан bank</span>
                 </div>
 
@@ -341,7 +317,6 @@ export default function GetAccessPage() {
                 </div>
               </div>
 
-              {/* Санамж хайрцаг */}
               <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-left border-dashed">
                 <div className="flex items-center gap-1.5 text-red-500 font-bold text-[10px] uppercase tracking-wider">
                   <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -357,7 +332,6 @@ export default function GetAccessPage() {
                 </p>
               </div>
 
-              {/* Төлбөр төлсөн товч */}
               <button
                 type="button"
                 onClick={() => {
@@ -372,8 +346,6 @@ export default function GetAccessPage() {
             </div>
           </div>
         )}
-
-        {/* ================= CUSTOM DARK ALERT ПОПАП ================= */}
         {alertPopup.show && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 animate-fade-in">
             <div className="w-full max-w-xs rounded-xl border border-[#232A35] bg-[#141922] p-5 text-center shadow-2xl text-xs">
@@ -388,8 +360,6 @@ export default function GetAccessPage() {
             </div>
           </div>
         )}
-
-        {/* ================= АМЖИЛТТАЙ БОЛСНЫГ МЭДЭГДЭХ ДАРК ПОПАП ================= */}
         {showSuccessToast && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 animate-fade-in">
             <div className="w-full max-w-sm rounded-2xl border border-[#232A35] bg-[#141922] p-5 text-center shadow-2xl text-xs">
@@ -420,7 +390,6 @@ export default function GetAccessPage() {
 
       </div>
 
-      {/* Босоо цагаан гүйлгэх зурвасны CSS загвар */}
       <style jsx global>{`
         .style-scrollbar::-webkit-scrollbar {
           width: 6px;

@@ -1,17 +1,18 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import serviceAccount from '../firebase-key.json';
 
-const projectId = serviceAccount.project_id;
+// 🚀 ЗАСВАР: Төслийн зөв storage bucket нэрийг шууд зааж өглөө
+const bucketName = "clover-manga.firebasestorage.app";
 
-// Сэрвэр асах бүрд дахин дахин ачааллахаас сэргийлж шалгаж байна
+// Сэрвэр асах бүрд дахин дахин ачааллахаас сэргийлж шалгах илүү найдвартай логик
 const adminApp = getApps().length === 0 
   ? initializeApp({
       credential: cert(serviceAccount as any),
-      storageBucket: `${projectId}.appspot.com`,
+      storageBucket: bucketName,
     })
-  : getApps()[0];
+  : getApp();
 
 // Гадагшаа ашиглах функцуудыг экспортолж байна
 export const db = getFirestore(adminApp);
