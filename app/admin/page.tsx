@@ -40,7 +40,6 @@ const generateMangaId = (title: string): string => {
     .replace(/\s+/g, '-') 
     .replace(/-+/g, '-');
 };
-
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -58,12 +57,17 @@ export default function AdminPage() {
   const [editAccessType, setEditAccessType] = useState<string>("Free");
   const [editAccessDays, setEditAccessAccessDays] = useState<number>(30);
 
+  // 🔔 Койн болон Эрх өөрчлөх үеийн баталгаажуулах попап цонхны төлөвүүд
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [pendingActionType, setPendingActionType] = useState<"coins" | "access" | null>(null);
+
   // Gmail болон Нууц үгээр нэвтрэх төлөвүүд
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
 
-  // 🚀  Манга болон Бүлэг засах ухаалаг төлөвүүд
+  // 🚀 Манга болон Бүлэг засах ухаалаг төлөвүүд
   const [isEditingManga, setIsEditingManga] = useState(false);
   const [oldMangaId, setOldMangaId] = useState("");
   const [isEditingChapter, setIsEditingChapter] = useState(false); 
@@ -90,7 +94,6 @@ export default function AdminPage() {
         setUser(currentUser);
         setIsAdmin(true);
 
-        // 🟩 ШИНЭ: Профайл дээр нэр солиход админ самбарт шууд өөрчлөгдөх Realtime холболт
         const userRef = doc(db, "users", currentUser.uid);
         unsubscribeUserDoc = onSnapshot(userRef, (snap) => {
           if (snap.exists()) {
@@ -157,7 +160,6 @@ export default function AdminPage() {
     };
   }, [isAdmin]); 
 
-  // 🚀 Gmail болон Нууц үгээр нэвтрэх функц
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -180,7 +182,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 Системээс гарах функц
   const handleLogout = async () => {
     await signOut(auth);
     setUser(null);
@@ -188,10 +189,19 @@ export default function AdminPage() {
     setEmailInput("");
     setPasswordInput("");
   };
-  // 🚀 ГИШҮҮНИЙ КОЙН БОЛОН VIP ЭРХИЙГ ШИНЭЧЛЭХ ЛОГИК
+  // 🔔 БАТАЛГААЖУУЛАХ ПОПАПЫГ ИДЭВХЖҮҮЛЭХ ЭХЛЭЛ ЛОГИК
   const handleUpdateUserWallet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserForEdit) return alert("Засах хэрэглэгчийг сонгоно уу!");
+
+    setConfirmMessage("10 Coin хасагдах болно. Та зөвшөөрч байна уу?");
+    setPendingActionType("coins"); 
+    setIsConfirmOpen(true);
+  };
+
+  // 🚀 БАТАЛГААЖУУЛАЛТЫН ДАРАА ХЭРЭГЛЭГЧИЙН КОЙН БОЛОН VIP ЭРХИЙГ ШИНЭЧЛЭХ ҮНДСЭН ФУНКЦ
+  const executeUserWalletUpdate = async () => {
+    if (!selectedUserForEdit) return;
 
     try {
       const userRef = doc(db, "users", selectedUserForEdit.uid);
@@ -213,13 +223,14 @@ export default function AdminPage() {
 
       alert("Гишүүний мэдээлэл амжилттай шинэчлэгдлээ!");
       setSelectedUserForEdit(null); 
+      setIsConfirmOpen(false); 
+      setPendingActionType(null);
     } catch (error) {
       console.error(error);
       alert("Гишүүний датаг шинэчлэхэд алдаа гарлаа.");
     }
   };
 
-  // 🚀 ГИШҮҮНИЙГ FIRESTORE-ООС БҮРМӨСӨН УСТГАЖ ЦЭВЭРЛЭХ ФУНКЦ
   const handleDeleteUserFromDb = async (uid: string) => {
     if (!confirm("Энэ хэрэглэгчийн датаг өгөгдлийн сангаас бүрмөсөн устгах уу?")) return;
     try {
@@ -231,10 +242,14 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 Утасны галерейгаас Манганы ковер зураг сонгож Cloudflare R2 руу хуулах функц
+  // 🚀 МАНГАНЫ КОВЕР ЗУРАГ: Сонгосон даруйд утсан дээр шууд харагдуулж, линкийг инпут талбарт автоматаар бичих функц
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 🟩 ШИНЭ ЛОГИК: Зургийг сонгосон даруйд утсан дээр шууд бэлэн харагдуулна
+    const localUrl = URL.createObjectURL(file);
+    setMangaForm((prev) => ({ ...prev, cover_image: localUrl }));
 
     try {
       setImageUploading(true);
@@ -249,30 +264,108 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
+        // R2 руу хуулагдаж дуусмагц жинхэнэ линкийг инпут талбарт шууд орлуулан хадгална
         setMangaForm((prev) => ({ ...prev, cover_image: data.url }));
       } else {
         alert("Зураг оруулахад алдаа гарлаа: " + data.error);
       }
-      setImageUploading(false);
     } catch (err) {
       alert("Зураг ачаалахад алдаа гарлаа.");
+    } finally {
       setImageUploading(false);
     }
   };
-
-  // 🚀 Манга үүсгэх форм (Зохиолчийг бүрмөсөн хасав)
+  // 🚀 Манга үүсгэх форм
   const [mangaForm, setMangaForm] = useState<MangaForm>({
     title: "", description: "", cover_image: "",
     genres: "", status: "ongoing", is_banner: false, is18: false, is_free: false
+  });
+
+  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Сонгосон даруйд утсан дээр шууд харуулж, цаана нь гацахгүй хуулах функц
+  const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (!chapterForm.manga_id) {
+      alert("Зураг оруулахаас өмнө дээрх цэснээс Мангаа заавал сонгоно уу!");
+      e.target.value = "";
+      return;
+    }
+
+    try {
+      setChapterImagesUploading(true);
+      const totalFiles = files.length;
+      
+      // 🟩 ШИНЭ ЛОГИК: Зургуудыг сонгосон даруйд R2-ыг хүлээлгүй утсан дээр шууд харуулна
+      const localUrls: string[] = [];
+      for (let i = 0; i < totalFiles; i++) {
+        localUrls.push(URL.createObjectURL(files[i]));
+      }
+      const currentImages = chapterForm.images ? chapterForm.images.split(",").map(u => u.trim()).filter(Boolean) : [];
+      setChapterForm(prev => ({ ...prev, images: [...currentImages, ...localUrls].join(",") }));
+
+      // 🚀 Цаана нь Cloudflare R2 руу гацахгүй хуулж, бэлэн болмогц линкийг инпут талбарт автоматаар шинэчилнэ
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < totalFiles; i++) {
+        setChapterUploadProgress(`Хуулж байна: ${i + 1} / ${totalFiles}`);
+        
+        const formData = new FormData();
+        formData.append("file", files[i]);
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          uploadedUrls.push(data.url);
+        } else {
+          uploadedUrls.push(localUrls[i]); // Алдаа гарвал local url-ийг хэвээр үлдээнэ
+        }
+      }
+
+      // Жинхэнэ R2 линкүүдийг инпут талбарт автоматаар бүрэн орлуулан хадгална
+      const finalImages = [...currentImages, ...uploadedUrls].join(",");
+      setChapterForm(prev => ({ ...prev, images: finalImages }));
+      setChapterUploadProgress("Бүх зураг амжилттай хуулагдлаа! 🎉");
+      e.target.value = ""; 
+    } catch (err) {
+      alert("Зураг хуулахад алдаа гарлаа.");
+    } finally {
+      setChapterImagesUploading(false);
+    }
+  };
+
+  const moveImageOrder = (index: number, direction: "up" | "down") => {
+    if (!chapterForm.images) return;
+    const imagesArray = chapterForm.images.split(",").filter(Boolean);
+    
+    if (direction === "up" && index === 0) return; 
+    if (direction === "down" && index === imagesArray.length - 1) return; 
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const temp = imagesArray[index];
+    imagesArray[index] = imagesArray[targetIndex];
+    imagesArray[targetIndex] = temp;
+
+    setChapterForm(prev => ({ ...prev, images: imagesArray.join(",") }));
+  };
+
+  const removeSpecificImage = (indexToRemove: number) => {
+    if (!chapterForm.images) return;
+    const imagesArray = chapterForm.images.split(",").filter(Boolean);
+    const updatedArray = imagesArray.filter((_, index) => index !== indexToRemove);
+    setChapterForm(prev => ({ ...prev, images: updatedArray.join(",") }));
+  };
+  // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
+  const [chapterForm, setChapterForm] = useState<ChapterForm>({
+    manga_id: "", chapter_number: 1, images: "", is_premium: false
   });
 
   const handleAddManga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mangaForm.title.trim()) {
       return alert("Манганы Гарчгийг заавал бөглөнө үү!");
-    }
-    if (imageUploading) {
-      return alert("Зураг ачааллаж байна, түр хүлээнэ үү!");
     }
 
     try {
@@ -311,7 +404,7 @@ export default function AdminPage() {
       alert("Манга хадгалахад алдаа гарлаа.");
     }
   };
-  // 🚀 Манга бүрмөсөн устгах функц
+
   const handleDeleteManga = async (id: string) => {
     if (!confirm("Энэ manga-г бүрмөсөн устгахдаа итгэлтэй байна уу?")) return;
     try {
@@ -323,89 +416,10 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 Бүлгийн олон хуудсуудыг (зургуудыг) зэрэг сонгож Cloudflare R2 руу гацахгүй хуулах функц
-  const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (!chapterForm.manga_id) {
-      alert("Зураг оруулахаас өмнө дээрх цэснээс Мангаа заавал сонгоно уу!");
-      e.target.value = "";
-      return;
-    }
-
-    try {
-      setChapterImagesUploading(true);
-      const uploadedUrls: string[] = [];
-      const totalFiles = files.length;
-
-      for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
-        setChapterUploadProgress(`Хуулж байна: ${i + 1} / ${totalFiles}`);
-        
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          uploadedUrls.push(data.url); 
-        }
-      }
-
-      const currentImages = chapterForm.images ? chapterForm.images.split(",").map(u => u.trim()).filter(Boolean) : [];
-      const allImages = [...currentImages, ...uploadedUrls].join(",");
-
-      setChapterForm(prev => ({ ...prev, images: allImages }));
-      setChapterUploadProgress("Бүх зураг амжилттай хуулагдлаа! 🎉");
-      e.target.value = ""; 
-    } catch (err) {
-      alert("Зураг хуулахад алдаа гарлаа.");
-    } finally {
-      setChapterImagesUploading(false);
-    }
-  };
-
-  // 🚀 ШИНЭ: Зургийн дарааллыг Facebook шиг урагш, хойш хөдөлгөж солих функц
-  const moveImageOrder = (index: number, direction: "up" | "down") => {
-    if (!chapterForm.images) return;
-    const imagesArray = chapterForm.images.split(",").filter(Boolean);
-    
-    if (direction === "up" && index === 0) return; 
-    if (direction === "down" && index === imagesArray.length - 1) return; 
-
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    const temp = imagesArray[index];
-    imagesArray[index] = imagesArray[targetIndex];
-    imagesArray[targetIndex] = temp;
-
-    setChapterForm(prev => ({ ...prev, images: imagesArray.join(",") }));
-  };
-
-  // 🚀 ШИНЭ: Сонгосон зургуудын дундаас буруу зургийг устгаж цэвэрлэх функц
-  const removeSpecificImage = (indexToRemove: number) => {
-    if (!chapterForm.images) return;
-    const imagesArray = chapterForm.images.split(",").filter(Boolean);
-    const updatedArray = imagesArray.filter((_, index) => index !== indexToRemove);
-    setChapterForm(prev => ({ ...prev, images: updatedArray.join(",") }));
-  };
-
-  // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
-  const [chapterForm, setChapterForm] = useState<ChapterForm>({
-    manga_id: "", chapter_number: 1, images: "", is_premium: false
-  });
-
   const handleAddChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chapterForm.manga_id || !chapterForm.chapter_number) {
       return alert("Мангаа сонгож, Бүлгийн дугаарыг заавал оруулна үү!");
-    }
-    if (chapterImagesUploading) {
-      return alert("Зургууд хуулагдаж байна, түр хүлээнэ үү!");
     }
 
     try {
@@ -447,7 +461,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 БҮЛЭГ УСТГАХ ФУНКЦ
   const handleDeleteChapter = async (id: string) => {
     if (!confirm("Энэ бүлгийг устгахдаа итгэлтэй байна уу?")) return;
     try {
@@ -541,7 +554,6 @@ export default function AdminPage() {
 
           <div className="flex items-center gap-4">
             <div className="hidden text-right md:block">
-              {/* 🟩 ШИНЭЧЛЭВ: Профайл дээр нэр солиход шууд өөрчлөгдөх Realtime profileName-ийг холбов */}
               <p className="text-xs font-bold text-gray-200">{profileName}</p>
               <p className="text-[10px] text-gray-500">{user?.email}</p>
             </div>
@@ -669,7 +681,7 @@ export default function AdminPage() {
             </div>
           )}
         </div>
-        {/* МАНГА НЭМЭХ БОЛОН ФАЙЛ УДБЛАД ХИЙХ ФОРМ */}
+      {/* МАНГА НЭМЭХ БОЛОН ФАЙЛ УДБЛАД ХИЙХ ФОРМ */}
         <div className="grid gap-8 md:grid-cols-2">
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
@@ -690,7 +702,6 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* 🟩 ЗАСВАРЛАВ: Зохиолч инпутыг хасаж, Төрөл инпутыг бүтэн мөр болгов */}
               <div>
                 <label className="block mb-1.5">Төрөл (Genres - Таслалаар зааглах):</label>
                 <input
@@ -702,11 +713,11 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Ковер зураг сонгох */}
+              {/* 🚀 ЗАСВАРЛАВ: Ковер зураг сонгоход шууд урьдчилж хараад линкийг нь ил гаргадаг UI */}
               <div>
                 <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг (Утаснаас сонгох):</label>
-                <div className="flex items-center gap-3">
-                  <label className="flex flex-1 items-center gap-2 justify-center rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
                     <ImageIcon size={16} />
                     <span>Зураг сонгох</span>
                     <input
@@ -716,11 +727,31 @@ export default function AdminPage() {
                       className="hidden"
                     />
                   </label>
-                  {imageUploading && <Loader2 size={16} className="animate-spin text-green-500" />}
+                  
+                  {/* Сонгосон зургийг доор нь том сүрлэгээр харуулна */}
                   {mangaForm.cover_image && (
-                    <img src={mangaForm.cover_image} alt="Preview" className="h-12 w-12 rounded-lg object-cover border border-[#232A35]" />
+                    <div className="relative w-28 aspect-[3/4] rounded-xl overflow-hidden bg-[#0B0F14] border border-[#232A35] shadow-md">
+                      <img src={mangaForm.cover_image} alt="Preview" className="w-full h-full object-cover" />
+                      {imageUploading && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <Loader2 size={16} className="animate-spin text-green-500" />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
+              </div>
+
+              {/* 🚀 НЭМЭВ: Зургийн линкийг шууд харуулж хянах боломжтой инпут */}
+              <div>
+                <label className="block mb-1.5">Зургийн линк (URL - Автоматаар бөглөгдөнө):</label>
+                <input
+                  type="text"
+                  value={mangaForm.cover_image}
+                  onChange={(e) => setMangaForm({ ...mangaForm, cover_image: e.target.value })}
+                  placeholder="https://link.jpg"
+                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-mono text-[10px]"
+                />
               </div>
 
               <div>
@@ -784,6 +815,7 @@ export default function AdminPage() {
               </button>
             </form>
           </div>
+
           {/* БҮЛЭГ НЭМЭХ ХЭСЭГ */}
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
@@ -836,7 +868,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* 🟩 ШИНЭ: ХУУЛСАН ЗУРГУУДЫГ FB ШИГ ДАРААЛЛААР НЬ ХЯНАХ UI */}
+              {/* 🟩 ЗАСВАРЛАВ: Хуулсан зургуудыг утаснаас сонгонгуут R2-ыг хүлээхгүй шууд харуулна */}
               {chapterForm.images && (
                 <div className="mt-4 border-t border-[#232A35]/60 pt-4 space-y-3">
                   <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
@@ -885,7 +917,7 @@ export default function AdminPage() {
               )}
 
               <div>
-                <label className="block mb-1.5">Зургийн линкүүд (Таслалаар заагласан URL):</label>
+                <label className="block mb-1.5">Зургийн линкүүд (Таслалаар заагласан URL - Автоматаар бөглөгдөнө):</label>
                 <textarea
                   rows={2}
                   value={chapterForm.images}
@@ -937,7 +969,7 @@ export default function AdminPage() {
                   <p className="text-[10px] text-gray-500 font-mono mt-0.5">ID: {m.id}</p>
                   <p className="text-[9px] text-green-400 font-bold mt-1">👁️ Хандалт: {m.views || 0}</p>
                 </div>
-                
+
                 {/* БҮЛЭГ ЗАСАХ / УСТГАХ ХЭСЭГ */}
                 <div className="mt-2 space-y-1">
                   <p className="text-[9px] text-gray-500 font-bold uppercase">Бүлгүүд засах:</p>
@@ -1003,7 +1035,7 @@ export default function AdminPage() {
                     }}
                     className="flex-1 rounded-lg bg-[#141922] border border-[#232A35] py-1.5 text-[10px] font-bold text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/5 transition flex items-center justify-center gap-1"
                   >
-                    <Edit3 size={12} /> Манга засах
+                    <Edit3 size={12} /> : Манга засах
                   </button>
                   <button
                     type="button"
@@ -1019,8 +1051,7 @@ export default function AdminPage() {
         </div>
 
       </div> {/* Үндсэн агуулга хаах div */}
-
-      {/* ГИШҮҮНИЙ МЭДЭЭЛЭЛ ЗАСАХ УХААЛАГ ПОПАП ЦОНХ */}
+      {/* ГИШҮҮНИЙ МЭДЭЭЛЭЛ ЗАСАХ ПОПАП ЦОНХ */}
       {selectedUserForEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-xs">
@@ -1090,6 +1121,48 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔔 ТАНЫ САЙТЫН ДИЗАЙНТАЙ ТӨГС ЗОХИЦОХ БАТАЛГААЖУУЛАХ ПОПАП ЦОНХ */}
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-xs rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-center space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+              <ShieldAlert size={20} />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="text-sm font-black uppercase tracking-wider text-gray-200">Үйлдэл баталгаажуулах</h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed font-bold px-2">
+                {confirmMessage}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmOpen(false);
+                  setPendingActionType(null);
+                }}
+                className="flex-1 rounded-xl border border-[#232A35] bg-[#0B0F14] py-2.5 font-bold text-gray-400 hover:text-white transition active:scale-95"
+              >
+                Цуцлах
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingActionType === "coins") {
+                    executeUserWalletUpdate();
+                  }
+                }}
+                className="flex-1 rounded-xl bg-green-500 py-2.5 font-black text-black hover:bg-green-400 transition active:scale-95"
+              >
+                Зөвшөөрөх
+              </button>
+            </div>
           </div>
         </div>
       )}

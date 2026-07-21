@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Star, BookOpen, Eye } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase"; // Урд талын firebase холболтыг нэмэв
-import { onAuthStateChanged } from "firebase/auth"; // Нэмэв
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"; // Нэмэв
+import { auth, db } from "@/lib/firebase"; 
+import { onAuthStateChanged } from "firebase/auth"; 
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"; 
 
 interface HistoryMangaType {
   id: string;
@@ -17,17 +17,13 @@ interface HistoryMangaType {
   rating: number;
   views: string;
   coverUrl: string;
+  totalChaptersCount: number; 
+  readChaptersCount: number;  
 }
-
-const fallbackMangasMax: { [key: string]: { chapters: number } } = {
-
-};
 
 export default function ContinueReadingPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  
-  // 🚀 Гараар шивсэн датаны оронд хэрэглэгчийн түүхийг хадгалах State-үүд
   const [mangaList, setMangaList] = useState<HistoryMangaType[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,7 +40,9 @@ export default function ContinueReadingPage() {
             const historyData = snap.data().history;
             const historyKeys = Object.keys(historyData);
 
-            // Түүхэнд байгаа манга бүрийн үндсэн мэдээллийг (Үнэлгээ, үзэлт) Firebase-ээс давхар хайна
+            const chaptersSnap = await getDocs(collection(db, "chapters"));
+            const allChapters = chaptersSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+
             const list = await Promise.all(historyKeys.map(async (key) => {
               const mangaRef = doc(db, "manga", key);
               const mangaSnap = await getDoc(mangaRef);
@@ -52,7 +50,8 @@ export default function ContinueReadingPage() {
 
               const lastChapterStr = historyData[key].lastChapter || "Бүлэг 1";
               const currentChapterNum = parseInt(lastChapterStr.replace(/[^0-9]/g, "")) || 1;
-              const totalChapters = fallbackMangasMax[key]?.chapters || 100;
+              
+              const totalChapters = allChapters.filter(c => c.manga_id === key).length || 1;
               const calculatedProgress = Math.min(Math.round((currentChapterNum / totalChapters) * 100), 100);
 
               const rawViews = mangaDbData.views || 0;
@@ -71,11 +70,12 @@ export default function ContinueReadingPage() {
                 rating: mangaDbData.rating || 5.0,
                 views: formattedViews,
                 coverUrl: historyData[key].coverUrl || "/placeholder-cover.jpg",
-                updatedAt: historyData[key].updatedAt || ""
+                updatedAt: historyData[key].updatedAt || "",
+                totalChaptersCount: totalChapters, 
+                readChaptersCount: currentChapterNum 
               };
             }));
             
-            // Хамгийн сүүлд уншсанаар нь эрэмблэнэ
             list.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
             setMangaList(list);
           }
@@ -89,11 +89,9 @@ export default function ContinueReadingPage() {
     return () => unsubscribe();
   }, []);
 
-  // Хуудас хөтөч дээр бүрэн сууж дуустал хоосон ачаалж сервертэй зөрөхөөс хамгаална
   if (!isMounted) {
     return <div className="min-h-screen bg-[#0B0F14]" />;
   }
-
   return (
     <main className="min-h-screen bg-[#0B0F14] text-white">
       <div className="mx-auto max-w-7xl px-6 md:px-8 py-10">
@@ -105,7 +103,6 @@ export default function ContinueReadingPage() {
             </h1>
             <p className="text-xs text-gray-500 font-medium mt-1">Одоогоор үргэлжлүүлэн уншиж байгаа цувралууд</p>
           </div>
-
           <button
             onClick={() => router.push("/")}
             className="rounded-xl border border-[#232A35] bg-[#141922] p-2.5 text-gray-400 hover:border-green-500 hover:text-green-500 transition active:scale-95 flex items-center justify-center shadow-lg"
@@ -188,7 +185,7 @@ export default function ContinueReadingPage() {
                     
                     <div className="flex items-center justify-between text-gray-500">
                       <span className="text-green-500 font-bold flex items-center gap-0.5 bg-green-500/5 px-1.5 py-0.5 rounded-lg border border-green-500/10">
-                        {item.progress}% уншсан
+                        {item.progress}% уншсан ({item.readChaptersCount}/{item.totalChaptersCount})
                       </span>
                       <span className="text-green-500 font-bold flex items-center gap-0.5 bg-green-500/5 px-1.5 py-0.5 rounded-lg border border-green-500/10">
                         <Star size={11} className="fill-green-500" /> {item.rating}
@@ -206,6 +203,3 @@ export default function ContinueReadingPage() {
     </main>
   );
 }
-
-
-       
