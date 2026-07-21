@@ -227,7 +227,7 @@ export default function Home() {
       } catch (error) { console.error(error); }
     };
 
-    const fetchCompleted = async () => {
+   const fetchCompleted = async () => {
       try {
         const q = query(collection(db, "manga"), where("status", "==", "completed"));
         const querySnapshot = await getDocs(q);
@@ -265,6 +265,7 @@ export default function Home() {
     }, 5000);
     return () => clearInterval(timer);
   }, [banners.length]);
+
   return (
     <main className="min-h-screen bg-[#0B0F14] text-white overflow-x-hidden">
       <header className="sticky top-0 z-50 border-b border-[#1E2530] bg-[#0B0F14]/90 backdrop-blur-xl">
@@ -277,15 +278,9 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="text-gray-300 hover:text-green-400 transition cursor-pointer p-2 rounded-xl hover:bg-[#141922] relative flex items-center justify-center">
-              <div className="hidden md:block">
-                <SearchModal />
-              </div>
-              <div className="md:hidden flex items-center justify-center">
-                <Link href="/search" className="flex items-center justify-center">
-                  <Search size={22} className="text-gray-300 hover:text-green-400" />
-                </Link>
-              </div>
+            {/* 🟩 ШИНЭЧЛЭВ: Утас болон компьютер дээр хоёуланд нь зассан SearchModal-ийг дуудна */}
+            <div className="text-gray-300 hover:text-green-400 transition cursor-pointer p-1 md:p-2 rounded-xl hover:bg-[#141922] relative flex items-center justify-center">
+              <SearchModal />
             </div>
 
             {!user ? (
@@ -317,7 +312,9 @@ export default function Home() {
           </div>
         </div>
       </header>
-      <section className="mx-auto mt-4 md:mt-6 max-w-[1400px] px-2 md:px-4">
+
+           <section className="mx-auto mt-4 md:mt-6 max-w-[1400px] px-2 md:px-4">
+        {/* 🟩 Хамгаалалтын хаалт: Дата уншиж дууссаныг заавал шалгана */}
         {banners && banners.length > 0 && banners[current] ? (
           <div 
             onClick={() => {
@@ -328,31 +325,42 @@ export default function Home() {
             }}
             className="relative overflow-hidden rounded-[24px] md:rounded-[32px] border border-white/[0.04] bg-[#0B0F14] shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer group active:scale-[0.99] transition-transform duration-200"
           >
+            {/* 🖼️ Баннерын зураг ачаалах хэсэг */}
             <div className="h-[200px] sm:h-[280px] md:h-[420px] lg:h-[480px] w-full relative bg-zinc-900">
               <img src={banners[current].image || "/placeholder-cover.jpg"} alt={banners[current].title} className={`h-full w-full object-cover transition-opacity duration-500 ease-in-out ${fade ? "opacity-100" : "opacity-0"}`} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F14] via-[#0B0F14]/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F14] via-[#0B0F14]/20 to-transparent" />
               <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
             </div>
 
-            <div className="absolute left-4 bottom-5 md:left-10 md:bottom-12 z-10 max-w-[85%] sm:max-w-[70%]">
-              <h1 className={`text-base sm:text-2xl md:text-3xl lg:text-5xl font-black text-white bg-[#0B0F14]/70 border border-white/10 px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-2xl backdrop-blur-md transition-all duration-300 group-hover:text-green-400 group-hover:translate-x-1 max-w-full truncate ${fade ? "opacity-100 scale-100" : "opacity-0 scale-95"}`} style={{ fontFamily: "'Futura', 'Trebuchet MS', sans-serif" }}>{banners[current].title}</h1>
+            {/* 🟩 Гарчиг хэсэг: Хүрээгүй, Кирилл фонттой, Доошилсон, Жижиг хэмжээтэй */}
+            <div className="absolute left-4 bottom-3 md:left-8 md:bottom-5 z-10 max-w-[90%] sm:max-w-[80%]">
+              <h1 
+                className={`text-sm sm:text-lg md:text-xl lg:text-2xl font-black text-white transition-all duration-300 group-hover:text-green-400 group-hover:translate-x-1 max-w-full truncate ${fade ? "opacity-100 scale-100" : "opacity-0 scale-95"}`} 
+                style={{ fontFamily: "'Inter', 'Segoe UI', 'Arial', sans-serif" }}
+              >
+                {banners[current].title}
+              </h1>
             </div>
 
+            {/* Баруун, зүүн солих товчлуурууд */}
             <button type="button" onClick={(e) => { e.stopPropagation(); setCurrent((prev) => (banners.length > 0 ? (prev === 0 ? banners.length - 1 : prev - 1) : 0)); }} className="flex absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20 h-9 w-9 md:h-11 md:w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-sm md:text-lg font-light">←</span></button>
             <button type="button" onClick={(e) => { e.stopPropagation(); setCurrent((prev) => (banners.length > 0 ? (prev + 1) % banners.length : 0)); }} className="flex absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20 h-9 w-9 md:h-11 md:w-11 items-center justify-center rounded-full border border-white/5 bg-black/40 text-gray-400 backdrop-blur-md transition-all duration-300 hover:border-green-500/30 hover:bg-green-500 hover:text-black active:scale-90"><span className="text-sm md:text-lg font-light">→</span></button>
 
-            <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+            {/* Доод талын индикатор цэгүүд */}
+            <div className="absolute bottom-3 md:bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-20">
               {banners.map((_, index) => (
                 <button key={`indicator-${index}`} type="button" onClick={(e) => { e.stopPropagation(); setCurrent(index); }} className={`transition-all duration-500 ${current === index ? "h-1.5 w-6 md:w-7 rounded-full bg-green-500" : "h-1.5 w-1.5 rounded-full bg-white/20"}`} />
               ))}
             </div>
           </div>
         ) : (
+          /* Сүлжээ уншиж байх үед харагдах Сүүдэр (Skeleton) хэсэг */
           <div className="h-[200px] sm:h-[280px] md:h-[420px] lg:h-[480px] w-full bg-zinc-900/50 rounded-[24px] md:rounded-[32px] border border-white/5 animate-pulse flex items-center justify-center">
             <div className="h-8 bg-zinc-800 rounded-xl w-1/4 animate-pulse" />
           </div>
         )}
       </section>
+
       {isMounted && user && historyList !== undefined && (
         <section className="mx-auto mt-12 md:mt-16 max-w-7xl px-4 sm:px-6 md:px-8">
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">

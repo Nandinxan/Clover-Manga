@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, MessageSquare, Send, UserRound, Lock, Star, Trash2, Edit2, X, Check, User } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, MessageSquare, Send, UserRound, Lock, Star, Trash2, Edit2, X, Check, User, AlertTriangle } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, onSnapshot, addDoc, updateDoc, deleteDoc, query, where, getDocs } from "firebase/firestore";
@@ -12,7 +12,6 @@ export default function MangaReaderPage() {
   const router = useRouter();
   
   const mangaId = params.id as string;
-  // URL дээрээс бүлгийн дугаарыг тоо хэлбэрээр уншиж авна
   const chapterId = params.chapter as string;
   const chapterNum = parseInt(chapterId) || 1;
 
@@ -20,87 +19,112 @@ export default function MangaReaderPage() {
   const [pages, setPages] = useState<string[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
-  // 🚀 ЭНЭ МӨРИЙГ ЯГ ОДОО НЭМЭЭРЭЙ:
   const [profile, setProfile] = useState<any>(null); 
-
 
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   
-  // 🚀 ШИНЭЭР НЭМЭВ: Манганы бодит гарчгийг хадгалах төлөв
   const [mangaTitle, setMangaTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // 1. Хэрэглэгчийн төлөв болон Firebase-ээс тухайн бүлгийн зургуудыг татах
+  // Устгах хайрцгийг удирдах болон Хаалттай бүлгийн попап удирдах төлөв
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [showLockModal, setShowLockModal] = useState(false);
+  
+  // Койн хүрэлцэхгүй попап болон Бүх бүлгийг шалгаж баруун сумыг удирдах төлөвүүд
+  const [showNoCoinModal, setShowNoCoinModal] = useState(false);
+  const [allMangaChapters, setAllMangaChapters] = useState<any[]>([]);
+  // 1. Хэрэглэгчийн төлөв, Уншсан түүх болон Профайл унших Realtime холболт
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeProfile: () => void;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
-      // 🟩 Хэрэглэгч нэвтэрсэн үед уншсан түүхийг Firestore-д автоматаар хадгална
-      if (currentUser && mangaId && chapterId) {
-        try {
-          const userRef = doc(db, "users", currentUser.uid);
-          const mangaSnap = await getDoc(doc(db, "manga", mangaId));
-          
-          await updateDoc(userRef, {
-            [`history.${mangaId}`]: {
-              title: mangaSnap.exists() ? (mangaSnap.data().title || mangaId.replace("-", " ").toUpperCase()) : mangaId.replace("-", " ").toUpperCase(),
-              coverUrl: mangaSnap.exists() ? (mangaSnap.data().cover_image || "/placeholder-cover.jpg") : "/placeholder-cover.jpg",
-              lastChapter: `Бүлэг ${chapterId}`,
-              updatedAt: new Date().toISOString()
-            }
-          });
-        } catch (error) {
-          console.error("Уншсан түүх хадгалахад алдаа гарлаа:", error);
+      if (currentUser) {
+        // Койн болон VIP эрхийг байнга зөв шалгахын тулд профайлыг Realtime уншина
+        const userRef = doc(db, "users", currentUser.uid);
+        unsubscribeProfile = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) setProfile(snap.data());
+        });
+
+        // Хэрэглэгч нэвтэрсэн үед уншсан түүхийг Firestore-д автоматаар хадгална
+        if (mangaId && chapterId) {
+          try {
+            const mangaSnap = await getDoc(doc(db, "manga", mangaId));
+            await updateDoc(userRef, {
+              [`history.${mangaId}`]: {
+                title: mangaSnap.exists() ? (mangaSnap.data().title || mangaId.replace("-", " ").toUpperCase()) : mangaId.replace("-", " ").toUpperCase(),
+                coverUrl: mangaSnap.exists() ? (mangaSnap.data().cover_image || "/placeholder-cover.jpg") : "/placeholder-cover.jpg",
+                lastChapter: `Бүлэг ${chapterId}`,
+                updatedAt: new Date().toISOString()
+              }
+            });
+          } catch (error) {
+            console.error("Уншсан түүх хадгалахад алдаа гарлаа:", error);
+          }
         }
       }
     });
 
-    const fetchChapterPages = async () => {
-      if (!mangaId || !chapterId) return;
-
-      try {
-        // 🚀 ТӨГС ШИНЭЧЛЭВ: Хуучин бүтцийг хасаж, бодит "chapters" цуглуулгаас manga_id болон chapter_number-оор хайна
-        const q = query(
-          collection(db, "chapters"),
-          where("manga_id", "==", mangaId),
-          where("chapter_number", "==", chapterNum)
-        );
-        const querySnapshot = await getDocs(q);
-
-        // Манганы үндсэн нэрийг унших
-        const mangaSnap = await getDoc(doc(db, "manga", mangaId));
-        if (mangaSnap.exists()) {
-          setMangaTitle(mangaSnap.data().title || "");
-        }
-
-        if (!querySnapshot.empty) {
-          const chapDoc = querySnapshot.docs[0];
-          const data = chapDoc.data();
-          // Админ самбараас оруулсан бодит зургуудын линкийг (pages массив) холбов
-          setPages(data.images || data.pages || []);
-        } else {
-          // Хэрэв датабааз дээр байхгүй бол унахгүй байх fallback
-          setPages([
-            "https://unsplash.com",
-          ]);
-        }
-        setLoading(false);
-      } catch (error) {
-        console.error("Бүлгийн зургуудыг татахад алдаа гарлаа:", error);
-        setLoading(false);
-      }
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
     };
+  }, [mangaId, chapterId]);
 
-    fetchChapterPages();
+  // 2. Бүлгийн зургуудыг getDocs биш Realtime onSnapshot-оор уншиж, таслалтай текстийг зөв салгана
+  useEffect(() => {
+    if (!mangaId || !chapterId) return;
 
-    return () => unsubscribe();
-  }, [mangaId, chapterId, chapterNum]);
-  // Устгах хайрцгийг удирдах болон Хаалттай бүлгийн попап удирдах төлөв
-  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
-  const [showLockModal, setShowLockModal] = useState(false);
+    const q = query(
+      collection(db, "chapters"),
+      where("manga_id", "==", mangaId),
+      where("chapter_number", "==", chapterNum)
+    );
 
-  // 🚀 ТӨГС ШИНЭЧЛЭВ: Хэрэглэгч 6-аас дээш бүлэг рүү орвол Premium эрх болон койноор нээсэн хугацааг нь бодитоор шалгана
+    const unsubscribeChapter = onSnapshot(q, async (querySnapshot) => {
+      // /manga цуглуулгаас админ самбарын бодит датаг уншина
+      const mangaSnap = await getDoc(doc(db, "manga", mangaId));
+      if (mangaSnap.exists()) {
+        setMangaTitle(mangaSnap.data().title || "");
+      }
+
+      if (!querySnapshot.empty) {
+        const chapDoc = querySnapshot.docs[0];
+        const data = chapDoc.data();
+        const rawImages = data.images || data.pages || [];
+
+        // R2 рүү хуулсан таслалтай текстийг массив болгож зөв салгах логик
+        if (Array.isArray(rawImages)) {
+          setPages(rawImages);
+        } else if (typeof rawImages === "string") {
+          setPages(rawImages.split(",").map((url: string) => url.trim()).filter(Boolean));
+        } else {
+          setPages([]);
+        }
+      } else {
+        setPages(["https://unsplash.com"]);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Бүлгийн зургуудыг татахад алдаа гарлаа:", error);
+      setLoading(false);
+    });
+
+    // Бодит бүлгүүдийн жагсаалтыг уншиж баруун сумны хаалтыг удирдана
+    const allChapsQuery = query(collection(db, "chapters"), where("manga_id", "==", mangaId));
+    const unsubscribeAllChaps = onSnapshot(allChapsQuery, (snapshot) => {
+      const chaps = snapshot.docs.map(doc => doc.data());
+      setAllMangaChapters(chaps); 
+    });
+
+    return () => {
+      unsubscribeChapter();
+      unsubscribeAllChaps();
+    };
+  }, [mangaId, chapterNum]);
+  // Хэрэглэгч 6-аас дээш бүлэг рүү орвол Premium эрхийг бодитоор шалгах
   useEffect(() => {
     if (chapterNum >= 6) {
       const isPremiumUser = profile?.accessType === "Premium" || profile?.accessType === "premium";
@@ -111,7 +135,6 @@ export default function MangaReaderPage() {
       const unlockDate = profile?.unlockedChapters?.[`${mangaId}_ch${chapterNum}`];
       const isAlreadyUnlocked = unlockDate ? new Date(unlockDate).getTime() > Date.now() : false;
 
-      // Хэрэв идэвхтэй Premium эрхгүй БАС койноор нээгээгүй бол хаалтыг автомат ажиллуулна
       if (!hasActivePremium && !isAlreadyUnlocked) {
         setShowLockModal(true);
       } else {
@@ -122,26 +145,42 @@ export default function MangaReaderPage() {
     }
   }, [chapterNum, profile, mangaId]);
 
-  // Сэтгэгдэл татах логик (Хэвээр үлдээв)
+  // Сэтгэгдлийг Realtime сонсохдоо хэрэглэгчийн одоогийн идэвхтэй Username-ийг users коллекцоос тулгана
   useEffect(() => {
     if (!mangaId || !chapterId) return;
 
     const q = collection(db, "comments");
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       const allComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       const filtered = allComments.filter((comment: any) => 
         comment.mangaId === mangaId && comment.chapterId === chapterId
       );
 
-      filtered.sort((a: any, b: any) => {
+      // Users коллекцоос одоогийн хамгийн сүүлийн шинэ нэрийг унших логик
+      const updatedFiltered = await Promise.all(filtered.map(async (comm: any) => {
+        if (comm.userId) {
+          try {
+            const userDocRef = doc(db, "users", comm.userId);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists()) {
+              return { ...comm, username: userSnap.data().username || comm.user || "Хэрэглэгч" };
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        return { ...comm, username: comm.user || "Хэрэглэгч" };
+      }));
+
+      updatedFiltered.sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
         return dateB - dateA;
       });
 
-      setComments(filtered);
+      setComments(updatedFiltered);
     });
 
     return () => unsubscribe();
@@ -163,7 +202,7 @@ export default function MangaReaderPage() {
     if (!editingText.trim()) return;
     try {
       await updateDoc(doc(db, "comments", commentId), { text: editingText });
-      setEditingCommentId(null);
+      setEditingCommentId(null); 
     } catch (error) {
       console.error("Засахад алдаа гарлаа:", error);
     }
@@ -189,28 +228,104 @@ export default function MangaReaderPage() {
     }
   };
 
-  // Ачааллаж байх явцад хуудас хоосон унахаас сэргийлнэ
+  // Хаалттай бүлгийг унших хуудаснаас шууд 10 койноор нээх функц
+  const unlockChapterWithCoins = async (chapterNumber: number) => {
+    if (!user) return alert("Бүлэг нээхийн тулд эхлээд нэвтэрнэ үү.");
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const currentCoins = userData.coins ?? 0;
+        
+        if (currentCoins < 10) {
+          setShowLockModal(false);
+          setShowNoCoinModal(true); 
+          return;
+        }
+
+        const expireDate = new Date();
+        expireDate.setFullYear(expireDate.getFullYear() + 1);
+
+        await updateDoc(userRef, {
+          coins: currentCoins - 10,
+          [`unlockedChapters.${mangaId}_ch${chapterNumber}`]: expireDate.toISOString()
+        });
+
+        setShowLockModal(false);
+        if (typeof window !== "undefined") window.location.reload();
+      }
+    } catch (error) {
+      console.error("Койноор нээхэд алдаа гарлаа:", error);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-[#06090D] text-white flex items-center justify-center text-xs font-bold">Уншиж байна...</div>;
   }
-
   return (
     <main className="min-h-screen bg-[#06090D] text-white relative">
-      {/* 🟩 ШИНЭЧЛЭВ: УНШИХ ХУУДАС ДЭЭРХ ХААЛТТАЙ БҮЛГИЙН НОГООН ЦООЖТОЙ ПОПАП ЦОНХ */}
+      
+      {/* САЙТЫН ӨНГӨТӨЙ ТӨГС ТОХИРСОН ШУУД 10 КОЙНООР НЭЭХ ПОПАП ЦОНХ */}
       {showLockModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-green-500/20 bg-[#141922] p-8 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-8 text-center shadow-2xl flex flex-col">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
               <Lock size={22} />
             </div>
-            <h2 className="mt-5 text-xl font-bold">Хаалттай бүлэг</h2>
-            <p className="mt-3 text-sm text-gray-400 leading-relaxed">Энэ бүлгийг уншихын тулд Coin эсвэл Premium эрх хэрэгтэй!</p>
-            <div className="mt-6">
+            <h2 className="mt-5 text-xl font-bold text-gray-200 uppercase tracking-wide">Хаалттай бүлэг</h2>
+            <p className="mt-3 text-xs text-gray-400 leading-relaxed px-2">
+              Бүлэг <span className="text-green-400 font-bold">{chapterId}</span> нь хаалттай байна. Уншихын тулд Premium эрх эсвэл 10 Coin хэрэгтэй.
+            </p>
+            <div className="mt-6 space-y-2">
+              <button 
+                onClick={() => unlockChapterWithCoins(chapterNum)}
+                className="w-full rounded-2xl bg-green-500 py-3.5 text-xs font-black text-black hover:bg-green-400 uppercase tracking-wide transition-all shadow-lg shadow-green-500/10"
+              >
+                10 койноор нээх
+              </button>
               <button 
                 onClick={() => router.replace(`/manga/${mangaId}`)}
-                className="w-full rounded-2xl bg-green-500 py-3.5 font-bold text-black hover:bg-green-400 transition"
+                className="w-full rounded-2xl bg-[#232A35] py-3.5 text-xs font-bold text-gray-300 hover:bg-[#2d3748] transition"
               >
                 БҮЛГҮҮД РҮҮ БУЦАХ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* КОЙН ХҮРЭХГҮЙ ҮЕД САЙТЫН ӨНГӨТӨЙ ТОХИРЧ ГАРЧ ИРЭХ ПОПАП */}
+      {showNoCoinModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-6 text-center shadow-xl text-xs flex flex-col">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500 border border-red-500/20 mt-1">
+              <AlertTriangle size={20} />
+            </div>
+            <h2 className="text-base font-bold text-gray-200 mt-4 uppercase tracking-wide text-red-400">Coin хүрэлцэхгүй байна</h2>
+            <p className="mt-3 text-gray-400 leading-relaxed px-4 text-xs">
+              Таны хэтэвчний койн хүрэлцэхгүй байна. Багцаа сонгон койноо цэнэглэнэ үү.
+            </p>
+            <div className="mt-6 space-y-2">
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowNoCoinModal(false);
+                  router.push("/get-access");
+                }} 
+                className="w-full rounded-2xl bg-green-500 py-3.5 text-xs font-black text-black hover:bg-green-400 uppercase tracking-wide transition shadow-lg shadow-green-500/10"
+              >
+                Эрх авах
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowNoCoinModal(false);
+                  router.replace(`/manga/${mangaId}`);
+                }} 
+                className="w-full rounded-2xl bg-[#232A35] py-3.5 text-xs font-bold text-gray-300 hover:bg-[#2d3748] transition"
+              >
+                Буцах
               </button>
             </div>
           </div>
@@ -248,7 +363,6 @@ export default function MangaReaderPage() {
             onClick={() => router.replace(`/manga/${mangaId}`)}
             className="text-left outline-none active:scale-95 transition-transform"
           >
-            {/* 🚀 ЗАСВАРЛАВ: mangaId биш бодит датабаазаас уншсан гарчгийг харуулна */}
             <h1 className="text-xs text-gray-400 uppercase hover:text-green-400 cursor-pointer font-medium tracking-wide">
               {mangaTitle || mangaId?.replace("-", " ")}
             </h1>
@@ -260,19 +374,23 @@ export default function MangaReaderPage() {
           <h2 className="text-base font-bold text-green-400 md:text-lg">Бүлэг - {chapterId}</h2>
         </div>
 
-        {/* Өмнөх/Дараах бүлэг рүү шилжих */}
+        {/* Өмнөх/Дараах бүлэг рүү шилжих ухаалаг хаалттай сумнууд */}
         <div className="flex items-center gap-2">
           <button 
             disabled={Number(chapterId) <= 1}
             onClick={() => router.replace(`/manga/${mangaId}/${Number(chapterId) - 1}`)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#141922] border border-[#232A35] text-gray-400 hover:border-green-500 hover:text-green-400 disabled:opacity-30 transition"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#141922] border border-[#232A35] text-gray-400 hover:border-green-500 hover:text-green-400 disabled:opacity-30 disabled:pointer-events-none transition"
           >
             <ChevronLeft size={20} />
           </button>
           
           <button 
+            disabled={
+              loading || 
+              !allMangaChapters.some((c: any) => Number(c.chapter_number) === Number(chapterId) + 1)
+            }
             onClick={() => router.replace(`/manga/${mangaId}/${Number(chapterId) + 1}`)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#141922] border border-[#232A35] text-gray-400 hover:border-green-500 hover:text-green-400 transition"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#141922] border border-[#232A35] text-gray-400 hover:border-green-500 hover:text-green-400 disabled:opacity-30 disabled:pointer-events-none transition"
           >
             <ChevronRight size={20} />
           </button>
@@ -284,7 +402,7 @@ export default function MangaReaderPage() {
         <div className="flex flex-col bg-black">
           {!showLockModal && pages.map((pageUrl, index) => (
             <img
-              key={index}
+              key={`reader-page-${index}`}
               src={pageUrl}
               alt={`Page ${index + 1}`}
               loading="lazy"
@@ -295,7 +413,8 @@ export default function MangaReaderPage() {
           ))}
         </div>
       </div>
-      {/* 🟩 СЭТГЭГДЛИЙН ХЭСЭГ */}
+
+      {/* СЭТГЭГДЛИЙН ХЭСЭГ */}
       <div className="mx-auto max-w-2xl border-t border-[#1A202C] bg-[#0B0F14] px-4 py-6 md:rounded-t-3xl mt-4">
         <div className="mb-4 flex items-center gap-2 text-base font-bold">
           <MessageSquare size={16} className="text-green-400" />
@@ -318,7 +437,6 @@ export default function MangaReaderPage() {
         ) : (
           <p className="mb-5 text-xs text-gray-500">Сэтгэгдэл бичихийн тулд нэвтэрнэ үү.</p>
         )}
-
         {/* Сэтгэгдлийн жагсаалт */}
         <div className="space-y-2">
           {comments.map((comment) => (
@@ -329,7 +447,8 @@ export default function MangaReaderPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 text-[10px]">
-                    <span className="font-semibold text-gray-200">{comment.user || "Хэрэглэгч"}</span>
+                    {/* 🟩 Байнга хамгийн сүүлийн шинэчлэгдсэн нэрийг уншина */}
+                    <span className="font-semibold text-gray-200">{comment.username || "Хэрэглэгч"}</span>
                   </div>
                   
                   {editingCommentId === comment.id ? (
@@ -358,12 +477,12 @@ export default function MangaReaderPage() {
               )}
             </div>
           ))}
+
+          {comments.length === 0 && (
+            <p className="text-center py-6 text-gray-600 italic">Энэ бүлэгт сэтгэгдэл байхгүй байна.</p>
+          )}
         </div>
       </div>
-
     </main>
   );
 }
-  
-      
-    
