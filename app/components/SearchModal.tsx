@@ -91,13 +91,12 @@ export default function SearchModal() {
         <Search size={16} className="text-gray-400" />
         <span>Хайх</span>
       </button>
-
-      {/* Попап модал цонх */}
+     {/* Попап модал цонх */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 pt-20 px-4 backdrop-blur-md">
           <div className="w-full max-w-xl rounded-3xl border border-white/5 bg-[#141922] p-6 shadow-2xl relative border-t-white/[0.03]">
 
-                      {/* Толгой хэсэг */}
+            {/* Толгой хэсэг */}
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Search size={18} className="text-green-500" />
@@ -118,7 +117,7 @@ export default function SearchModal() {
             <div className="relative mt-2">
               <input
                 autoFocus
-                placeholder="Унших мангаа бичнэ үү..."
+                placeholder="Унших мангагаа бичнэ үү..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-2xl border border-[#232A35] bg-[#0B0F14] px-5 py-4 pl-12 text-sm text-white placeholder:text-gray-500 outline-none transition-all duration-300 focus:border-green-500/60 focus:shadow-[0_0_25px_rgba(34,197,94,0.1)]"

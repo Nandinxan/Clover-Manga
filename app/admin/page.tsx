@@ -212,32 +212,36 @@ export default function AdminPage() {
       alert("Устгахад алдаа гарлаа.");
     }
   };
-  // 🚀 Утасны галерейгаас Манганы ковер зураг сонгож хуулах функц
+  // 🚀 Утасны галерейгаас Манганы ковер зураг сонгож Cloudflare R2 руу хуулах функц
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setImageUploading(true);
-      const storageRef = ref(storage, `manga_covers/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      // 🟩 ШИНЭЧЛЭВ: Firebase биш өөрийн үүсгэсэн R2 API руу зургийг илгээнэ
+      const formData = new FormData();
+      formData.append("file", file);
 
-      uploadTask.on(
-        "state_changed",
-        null,
-        (error) => {
-          console.error("Зураг хуулахад алдаа гарлаа:", error);
-          alert("Зураг оруулахад алдаа гарлаа.");
-          setImageUploading(false);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setMangaForm((prev) => ({ ...prev, cover_image: downloadURL }));
-          setImageUploading(false);
-        }
-      );
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // R2-оос ирсэн бэлэн зургийн линкийг формын ковер зурагт онооно
+        setMangaForm((prev) => ({ ...prev, cover_image: data.url }));
+      } else {
+        console.error("R2 Upload Error:", data.error);
+        alert("Зураг оруулахад алдаа гарлаа: " + data.error);
+      }
+      setImageUploading(false);
     } catch (err) {
-      console.error(err);
+      console.error("Системийн алдаа:", err);
+      alert("Зураг ачаалахад алдаа гарлаа.");
       setImageUploading(false);
     }
   };
@@ -307,7 +311,8 @@ export default function AdminPage() {
       alert("Устгахад алдаа гарлаа.");
     }
   };
-  // 🚀 ЗАСВАР: Бүлгийн олон хуудсуудыг (зургуудыг) зэрэг сонгож хуулах функц
+
+  // 🚀 ЗАСВАРЛАВ: Бүлгийн олон хуудсуудыг (зургуудыг) зэрэг сонгож Cloudflare R2 руу гацахгүй хуулах функц
   const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -322,18 +327,27 @@ export default function AdminPage() {
       const uploadedUrls: string[] = [];
       const totalFiles = files.length;
 
+      // 🟩 ШИНЭЧЛЭВ: Зургуудыг Firebase руу биш R2 API руу маш хурдан дарааллаар нь илгээнэ
       for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
         setChapterUploadProgress(`Хуулж байна: ${i + 1} / ${totalFiles}`);
         
-        const storageRef = ref(
-          storage, 
-          `chapter_pages/${chapterForm.manga_id}/ch_${chapterForm.chapter_number}/${Date.now()}_${file.name}`
-        );
-        
-        const uploadTask = await uploadBytesResumable(storageRef, file);
-        const downloadURL = await getDownloadURL(uploadTask.ref);
-        uploadedUrls.push(downloadURL);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          uploadedUrls.push(data.url); // R2-оос ирсэн зургийн бэлэн линкийг хадгална
+        } else {
+          console.error(`${file.name} зургийг хуулахад алдаа гарлаа:`, data.error);
+          // Нэг зураг дээр алдаа гарвал бусдыг нь гацаахгүйн тулд үргэлжлүүлнэ
+        }
       }
 
       const currentImages = chapterForm.images ? chapterForm.images.split(",").map(u => u.trim()).filter(Boolean) : [];
@@ -412,6 +426,7 @@ export default function AdminPage() {
       alert("Бүлэг устгахад алдаа гарлаа.");
     }
   };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#0B0F14] text-white font-bold text-xs uppercase tracking-widest animate-pulse">
@@ -479,6 +494,7 @@ export default function AdminPage() {
       </main>
     );
   }
+
 
   return (
     <main className="min-h-screen bg-[#0B0F14] text-white">
