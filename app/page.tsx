@@ -361,7 +361,7 @@ export default function Home() {
         )}
       </section>
 
-      {isMounted && user && historyList !== undefined && (
+     {isMounted && user && historyList !== undefined && (
         <section className="mx-auto mt-12 md:mt-16 max-w-7xl px-4 sm:px-6 md:px-8">
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
             <div><h2 className="text-xl md:text-3xl font-bold tracking-tight">Үргэлжлүүлэх</h2></div>
@@ -370,20 +370,29 @@ export default function Home() {
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x scroll-smooth md:grid md:grid-cols-5 md:gap-6 md:overflow-x-visible md:pb-0">
             {historyList.length > 0 ? (
               historyList.slice(0, 6).map((manga) => {
-                const currentChapterNum = parseInt(manga.lastChapter.replace(/[^0-9]/g, "")) || 1;
-                const totalChapters = fallbackMangas[manga.id]?.chapters || 100;
-                const calculatedProgress = Math.min(Math.round((currentChapterNum / totalChapters) * 100), 100);
+                const anyManga = manga as any; // 🚀 1. TypeScript улаан болохоос сэргийлж any болгоно
+                const currentChapterNum = parseInt(anyManga.lastChapter ? anyManga.lastChapter.replace(/[^0-9]/g, "") : "1") || 1;
+                
+                // 🚀 2. Улаан зураас гаргахгүйн тулд chapters-ийг устгаж, manga дата баазаас шууд ирдэг totalChapters-ийг уншина
+                // Хэрэв дата баазад байхгүй бол алдаанаас сэргийлж уншсан бүлгийг нь нийт бүлэг (100%) гэж үзнэ
+                const totalChapters = anyManga.totalChaptersCount || anyManga.totalChapters || anyManga.chapters_count || currentChapterNum || 1;
+                
+                // 🚀 3. Прогресс хувийг бодно
+                const calculatedProgress = totalChapters > 0 
+                  ? Math.min(100, Math.round((currentChapterNum / totalChapters) * 100)) 
+                  : 0;
+
                 return (
-                  <div key={`history-card-${manga.id}`} onClick={() => { if (typeof window !== "undefined") { window.history.replaceState({ usr: { from: "/" } }, ""); } router.push(`/manga/${manga.id}?from=all`); }} className="flex-none w-[130px] sm:w-[160px] md:w-full snap-start overflow-hidden rounded-2xl border border-[#222933] bg-[#141922] transition duration-300 hover:border-green-500 cursor-pointer group flex flex-col h-full hover:shadow-[0_10px_25px_rgba(0,0,0,0.3)] animate-fadeIn">
-                    <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={manga.coverUrl || "/placeholder-cover.jpg"} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
+                  <div key={`history-card-${anyManga.id}`} onClick={() => { if (typeof window !== "undefined") { window.history.replaceState({ usr: { from: "/" } }, ""); } router.push(`/manga/${anyManga.id}?from=all`); }} className="flex-none w-[130px] sm:w-[160px] md:w-full snap-start overflow-hidden rounded-2xl border border-[#222933] bg-[#141922] transition duration-300 hover:border-green-500 cursor-pointer group flex flex-col h-full hover:shadow-[0_10px_25px_rgba(0,0,0,0.3)] animate-fadeIn">
+                    <div className="aspect-[3/4] w-full bg-[#232A35]/40 relative overflow-hidden"><img src={anyManga.coverUrl || "/placeholder-cover.jpg"} alt={anyManga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" /></div>
                     <div className="p-2.5 md:p-5 flex flex-col flex-1 justify-between bg-[#141922]">
                       <div>
-                        <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-400 transition-colors duration-200 tracking-wide">{manga.title}</h3>
-                        <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">{manga.lastChapter}</p>
+                        <h3 className="text-xs md:text-lg font-bold truncate text-gray-200 group-hover:text-green-400 transition-colors duration-200 tracking-wide">{anyManga.title}</h3>
+                        <p className="mt-0.5 text-[10px] md:text-sm text-green-500 font-bold">{anyManga.lastChapter}</p>
                       </div>
                       <div className="mt-3">
                         <div className="h-1 md:h-2 overflow-hidden rounded-full bg-[#2B313D]"><div className="h-full rounded-full bg-green-500 transition-all duration-500" style={{ width: `${calculatedProgress}%` }} /></div>
-                        <p className="mt-1 text-[9px] md:text-xs text-gray-500 font-medium">{calculatedProgress}% уншсан</p>
+                        <p className="mt-1 text-[9px] md:text-xs text-gray-500 font-medium">{calculatedProgress}% уншсан ({currentChapterNum}/{totalChapters})</p>
                       </div>
                     </div>
                   </div>

@@ -28,6 +28,7 @@ interface MangaForm {
   title: string;
   description: string;
   cover_image: string;
+  banner_image: string; // 🚀 НЭМЭВ: Баннер зургийн төрлийг интерфейст нэмж улаан зураасгүй болгов
   genres: string;
   status: "ongoing" | "completed" | "paused"; 
   is_banner: boolean;
@@ -143,7 +144,8 @@ export default function MangaDetailsPage() {
           setManga({
             id: mangaDocSnap.id,
             title: data.title || mangaId?.replace("-", " "),
-            image: data.cover_image || "https://unsplash.com",
+            image: data.cover_image || "https://unsplash.com", // 🚀 Хэвээр үлдээв (Постер зураг)
+            banner: data.banner_image || data.cover_image || "", // 🚀 БҮРЭН ЗАСАВ: Өгөгдлийн сангаас урт баннер зургийг уншиж, байхгүй бол постероор орлуулна
             author: data.author || "Зохиолч тодорхойгүй",
             description: data.description || "Тайлбар хоосон байна.",
             views: data.views || 0,
@@ -159,6 +161,7 @@ export default function MangaDetailsPage() {
           setManga({
             title: mangaId?.replace("-", " "),
             image: "https://unsplash.com",
+            banner: "", // 🚀 НЭМЭВ
             author: "Зохиолч тодорхойгүй",
             description: "Тайлбар хоосон байна.",
             views: 0,
@@ -221,7 +224,6 @@ export default function MangaDetailsPage() {
       const revList: any[] = [];
       let totalRating = 0;
 
-      // Хэрэглэгчид унших хэсгийг доор Promise.all-оор шинэчилнэ
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         revList.push({ id: docSnap.id, ...data });
@@ -312,7 +314,6 @@ export default function MangaDetailsPage() {
         setFavorite(false);
       } else {
         await updateDoc(userRef, {
-          // 🟩 ЗАСВАРЛАВ: Админаас зохиолч хасагдсан тулfavorites-д author хадгалахгүй
           [`favorites.${mangaId}`]: { title: manga.title, coverUrl: manga.image }
         });
         setFavorite(true);
@@ -369,7 +370,6 @@ export default function MangaDetailsPage() {
   if (loading) return <div className="min-h-screen bg-[#0B0F14] text-white flex items-center justify-center text-xs font-bold">Ачаалж байна...</div>;
   if (!manga) return <div className="min-h-screen bg-[#0B0F14] text-white flex items-center justify-center text-xs font-bold">Манга олдсонгүй.</div>;
 
-  // 🚀 ТӨГС ЗАСВАРЛАВ: Гараар шивсэн хуучин массив биш, Part 1 дээр realtime уншсан "chapters" State-ээс эрэмбэлнэ
   const chaptersArray = [...chapters]; 
   
   // Өгсөх уруудахаар эрэмбэлэх засал
@@ -419,10 +419,13 @@ export default function MangaDetailsPage() {
       <div className="max-w-xl mx-auto">
         {/* COVER ХЭСЭГ */}
         <div className="relative h-[440px] w-full rounded-3xl overflow-hidden border border-[#232A35] bg-black flex items-center justify-center">
-          <img src={manga?.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-xl scale-110" />
           
+          {/* 🚀 ЗАСВАРЛАВ: Арын blur дэвсгэр дээр урт баннер зургийг (manga.banner) холбов. Байхгүй бол постер гарна */}
+          <img src={manga?.banner || manga?.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20 blur-xl scale-110" />
+          
+          {/* 🚀 ЗАСВАРЛАВ: Урд талын постер карт дээр Firestore-ийн зөв постер зургийг (manga.image) холбов */}
           <div className="relative z-10 h-[300px] w-[210px] overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/80">
-            <img src={manga?.coverUrl} alt={manga?.title} className="h-full w-full object-cover" />
+            <img src={manga?.image} alt={manga?.title} className="h-full w-full object-cover" />
           </div>
 
           <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F14] via-transparent to-black/30 z-10" />
@@ -458,7 +461,7 @@ export default function MangaDetailsPage() {
           </button>
         </div>
 
-        {/* МАНГАНЫ МЭДЭЭЛЭЛ ХЭСЭГ */}
+       {/* МАНГАНЫ МЭДЭЭЛЭЛ ХЭСЭГ */}
         <h1 className="text-3xl font-bold mt-6">{manga?.title}</h1>
         
         <div className="flex items-center gap-4 mt-4 flex-wrap text-sm text-gray-300">
@@ -482,7 +485,7 @@ export default function MangaDetailsPage() {
         <h3 className="text-lg font-bold mt-6 mb-2">Тайлбар</h3>
         <p className="text-gray-400 text-sm leading-relaxed border-b border-[#232A35]/40 pb-6">{manga?.description}</p>
         
-        {/* ҮНЭЛГЭЭ ӨГӨХ ХЭСЭГ */}
+        {/*  ҮНЭЛГЭЭ ӨГӨХ ХЭСЭГ */}
         <div className="mt-5 border-b border-[#232A35]/40 pb-5 text-left">
           <div className="mb-3 flex items-center gap-2">
             <div className="rounded-lg bg-green-500/10 p-1.5 text-green-400 border border-green-500/20 flex-shrink-0">
@@ -491,8 +494,7 @@ export default function MangaDetailsPage() {
             <h3 className="text-sm font-bold">Үнэлгээ өгөх</h3>
           </div>
 
-          
-         <form onSubmit={handleSendReview} className="space-y-2.5">
+          <form onSubmit={handleSendReview} className="space-y-2.5">
             <div className="flex items-center gap-1.5 bg-[#141922]/30 rounded-xl p-2 border border-[#232A35]/20 w-fit">
               <span className="text-[10px] text-gray-500 mr-1">Таны үнэлгээ:</span>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -558,7 +560,8 @@ export default function MangaDetailsPage() {
                     )}
                   </div>
 
-                  {user && user.uid === rev.userId && editingReviewId !== rev.id && (
+
+                 {user && user.uid === rev.userId && editingReviewId !== rev.id && (
                     <div className="flex gap-2 text-[9px] font-semibold flex-shrink-0 pt-0.5">
                       <button onClick={() => { setEditingReviewId(rev.id); setEditingText(rev.text); }} className="text-gray-400 hover:text-green-400 transition-colors">Засах</button>
                       <button onClick={() => setReviewToDelete(rev.id)} className="text-gray-500 hover:text-red-400 transition-colors">Устгах</button>
@@ -602,7 +605,7 @@ export default function MangaDetailsPage() {
             </button>
           </div>
 
-                    <div className="space-y-3">
+          <div className="space-y-3">
             {filteredChapters.length > 0 ? (
               filteredChapters.map((chObj: any) => {
                 const chapterNum = chObj.chapter_number;
@@ -645,8 +648,9 @@ export default function MangaDetailsPage() {
                       isLocked ? "border-green-500/20 hover:border-green-500/40" : "border-[#232A35] hover:border-gray-500"
                     }`}
                   >
+                    {/* 🚀 ЗАСВАРЛАВ: coverUrl биш зөв постер зураг (manga.image) уншина */}
                     <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-black border border-white/5">
-                      <img src={manga?.coverUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={manga?.image || "/placeholder-cover.jpg"} alt="" className="h-full w-full object-cover" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-sm">{chObj.title}</h3>
@@ -667,7 +671,8 @@ export default function MangaDetailsPage() {
           </div>
         </div>
 
-        {/* ЦООЖТОЙ БАННЕР - УУЖИМ ТОМ ХЭМЖЭЭТЭЙ (max-w-md), Х ТОВЧТОЙ */}
+
+       {/* ЦООЖТОЙ БАННЕР - УУЖИМ ТОМ ХЭМЖЭЭТЭЙ (max-w-md), Х ТОВЧТОЙ */}
         {showLockModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
             <div className="relative w-full max-w-md rounded-3xl border border-[#232A35] bg-[#141922] p-6 text-center shadow-xl text-xs flex flex-col">
@@ -704,7 +709,7 @@ export default function MangaDetailsPage() {
           </div>
         )}
 
-                {/* COIN ХҮРЭЛЦЭХГҮЙ ҮЕД ГАРЧ ИРЭХ ПОПАП - ЦЭВЭР ALERT-TRIANGLE ICON */}
+        {/* COIN ХҮРЭЛЦЭХГҮЙ ҮЕД ГАРЧ ИРЭХ ПОПАП - ЦЭВЭР ALERT-TRIANGLE ICON */}
         {showNoCoinModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
             <div className="relative w-full max-w-md rounded-3xl border border-[#232A35] bg-[#141922] p-6 text-center shadow-xl text-xs flex flex-col">
