@@ -10,7 +10,7 @@ interface MangaForm {
   title: string;
   description: string;
   cover_image: string;
-  banner_image: string; // 🚀 НЭМЭВ: Баннерын урт зургийн линк хадгалах хувьсагч
+  banner_image: string; 
   genres: string;
   status: "ongoing" | "completed" | "paused"; 
   is_banner: boolean;
@@ -29,7 +29,7 @@ interface ChapterForm {
 // 🚀 КИРИЛЛ ҮСГИЙГ АНГЛИ ҮСЭГ РҮҮ ХӨРВҮҮЛЖ, АВТОМАТ ID ҮҮСГЭХ ФУНКЦ
 const generateMangaId = (title: string): string => {
   const cyrillicToLatin: { [key: string]: string } = {
-    'а':'a','б':'b','вв':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','ө':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ү':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','ө':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ү':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
   };
   return title
     .toLowerCase()
@@ -42,8 +42,8 @@ const generateMangaId = (title: string): string => {
     .replace(/-+/g, '-');
 };
 
-// 🚀 ШИНЭ: УТАСНЫ ГАЛЕРЕЙГААС ОРЖ ИРСЭН ТОМ ЗУРГИЙГ АВТОМАТААР ШАХАЖ ХЭМЖЭЭГ БАГАСГАХ ФУНКЦ
-const compressImage = (file: File, maxWidth = 1000, maxHeight = 1500, quality = 0.75): Promise<Blob> => {
+// 🚀 УТАСНЫ ХАМГААЛАЛТ: ОРЖ ИРСЭН ТОМ ЗУРГИЙГ 0.2 СЕКУНДЭД ХУРДАН ШАХАЖ ХЭМЖЭЭГ БАГАСГАХ ФУНКЦ
+const compressImage = (file: File, maxWidth = 600, maxHeight = 900, quality = 0.65): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -70,7 +70,12 @@ const compressImage = (file: File, maxWidth = 1000, maxHeight = 1500, quality = 
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, width, height);
+        
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "low"; 
+          ctx.drawImage(img, 0, 0, width, height);
+        }
 
         canvas.toBlob(
           (blob) => {
@@ -85,7 +90,6 @@ const compressImage = (file: File, maxWidth = 1000, maxHeight = 1500, quality = 
     reader.onerror = (error) => reject(error);
   });
 };
-
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -130,7 +134,6 @@ export default function AdminPage() {
     "nandinxanclover@gmail.com",
     "tsogoonandinerdene31@gmail.com"
   ];
-
   // 🚀 1. АЛХАМ: Auth төлөвийг шалгах + Админы нэрийг Realtime сонсох
   useEffect(() => {
     let unsubscribeUserDoc: () => void;
@@ -168,8 +171,7 @@ export default function AdminPage() {
     };
   }, []);
 
-
-// 🚀 2. АЛХАМ: Датабаазын Realtime холболтуудыг асаах
+  // 🚀 2. АЛХАМ: Датабаазын Realtime холболтуудыг асаах
   useEffect(() => {
     if (!isAdmin) return; 
 
@@ -216,7 +218,7 @@ export default function AdminPage() {
     }
     
     if (!allowedEmails.includes(emailInput.trim().toLowerCase())) {
-      return setAuthError("Танд админ sample руу нэвтрэх эрх байхгүй!");
+      return setAuthError("Танд админ самбар руу нэвтрэх эрх байхгүй!");
     }
 
     try {
@@ -237,7 +239,6 @@ export default function AdminPage() {
     setEmailInput("");
     setPasswordInput("");
   };
-
   // 🔔 БАТАЛГААЖУУЛАХ ПОПАПЫГ ИДЭВХЖҮҮЛЭХ ЭХЛЭЛ ЛОГИК
   const handleUpdateUserWallet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,23 +281,34 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 МАНГАНЫ ПОСТЕР (КОВЕР): Утаснаас зураг уншихад нэрийг нь автоматаар сольж, хэмжээг жижигсгэн гацахгүй хуулдаг функц
+  const handleDeleteUserFromDb = async (uid: string) => {
+    if (!confirm("Энэ хэрэглэгчийн датаг өгөгдлийн сангаас бүрмөсөн устгах уу?")) return;
+    try {
+      await deleteDoc(doc(db, "users", uid));
+      alert("Хэрэглэгчийн дата амжилттай устлаа!");
+    } catch (error) {
+      console.error(error);
+      alert("Устгахад алдаа гарлаа.");
+    }
+  };
+
+  // 🚀 МАНГАНЫ ПОСТЕР (КОВЕР): Утаснаас зураг уншихад 0.2 сек-д шахаж, секунд хүрэхгүй хугацаанд R2 руу хуулна
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Утсан дээр шууд урьдчилж харуулна (Blob Preview)
     const localUrl = URL.createObjectURL(file);
     setMangaForm((prev) => ({ ...prev, cover_image: localUrl }));
 
     try {
       setImageUploading(true);
+      setChapterUploadProgress("Постер зургийг утсан дээр шахаж байна... 🛠️");
+      
+      const compressedBlob = await compressImage(file, 600, 900, 0.65);
+      
+      setChapterUploadProgress("R2 руу маш хурдан хуулж байна... 🚀");
+      
       const formData = new FormData();
-      
-      // 🚀 УТАСНЫ ХАМГААЛАЛТ: Зургийг утасны хөтөч дээр автоматаар шахаж хэмжээг нь маш жижиг болгоно
-      const compressedBlob = await compressImage(file, 800, 1200, 0.75);
-      
-      // Файлын нэрийг цэвэр англи нэр рүү хөрвүүлнэ
       const fileExtension = file.name.split('.').pop() || 'jpg';
       const cleanFileName = `cover-${Date.now()}.${fileExtension}`;
       const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
@@ -311,35 +323,39 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        // R2 линкийг автоматаар инпут дээр гаргана
         setMangaForm((prev) => ({ ...prev, cover_image: data.url }));
+        setChapterUploadProgress("Постер зураг амжилттай хуулагдлаа! 🎉");
+        setTimeout(() => setChapterUploadProgress(""), 2000);
       } else {
         alert("Зураг оруулахад алдаа гарлаа: " + data.error);
+        setChapterUploadProgress("");
       }
     } catch (err) {
       console.error(err);
-      alert("Утаснаас зураг ачаалахад алдаа гарлаа. Файлыг шахахад алдаа гарсан байж болзошгүй.");
+      alert("Зураг ачаалахад алдаа гарлаа.");
+      setChapterUploadProgress("");
     } finally {
       setImageUploading(false);
     }
   };
 
-     // 🚀 БАННЕР ЗУРАГ: Утаснаас баннер зураг оруулахад нэрийг нь автоматаар сольж, хэмжээг жижигсгэн гацахгүй хуулдаг функц
+  // 🚀 БАННЕР ЗУРАГ: Утаснаас баннер уншихад 0.2 сек-д шахаж, секунд хүрэхгүй хугацаанд R2 руу хуулна
   const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Зургийг сонгосон даруйд утсан дээр шууд урт хэмжээгээр харуулна
     const localUrl = URL.createObjectURL(file);
     setMangaForm((prev) => ({ ...prev, banner_image: localUrl }));
 
     try {
       setImageUploading(true);
+      setChapterUploadProgress("Баннерыг хурдан шахаж байна... 🛠️");
+      
+      const compressedBlob = await compressImage(file, 1000, 600, 0.65);
+      
+      setChapterUploadProgress("R2 руу баннерыг хурдан хуулж байна... 🚀");
+      
       const formData = new FormData();
-      
-      // 🚀 УТАСНЫ ХАМГААЛАЛТ: Баннер зургийг хөтөч дээр автоматаар шахаж хэмжээг нь багасгана (урт зураг тул өргөнийг 12000000000000000000000-аар барина)
-      const compressedBlob = await compressImage(file, 1200, 800, 0.75);
-      
       const fileExtension = file.name.split('.').pop() || 'jpg';
       const cleanFileName = `banner-${Date.now()}.${fileExtension}`;
       const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
@@ -354,37 +370,28 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        // R2 линк бэлэн болмогц инпут талбарт автоматаар шинэчилнэ
         setMangaForm((prev) => ({ ...prev, banner_image: data.url }));
+        setChapterUploadProgress("Баннер зураг амжилттай хуулагдлаа! 🎉");
+        setTimeout(() => setChapterUploadProgress(""), 2000);
       } else {
         alert("Баннер зураг оруулахад алдаа гарлаа: " + data.error);
+        setChapterUploadProgress("");
       }
     } catch (err) {
       console.error(err);
       alert("Баннер зураг ачаалахад алдаа гарлаа.");
+      setChapterUploadProgress("");
     } finally {
       setImageUploading(false);
     }
   };
-
-  const handleDeleteUserFromDb = async (uid: string) => {
-    if (!confirm("Энэ хэрэглэгчийн датаг өгөгдлийн сангаас бүрмөсөн устгах уу?")) return;
-    try {
-      await deleteDoc(doc(db, "users", uid));
-      alert("Хэрэглэгчийн дата амжилттай устлаа!");
-    } catch (error) {
-      console.error(error);
-      alert("Устгахад алдаа гарлаа.");
-    }
-  };
-
   // 🚀 МАНГА ҮҮСГЭХ ФОРМЫН СТЭЙТ
   const [mangaForm, setMangaForm] = useState<MangaForm>({
     title: "", description: "", cover_image: "", banner_image: "",
     genres: "", status: "ongoing", is_banner: false, is18: false, is_free: false
   });
 
-  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Утаснаас олноор нь зэрэг сонгоход зураг бүрийг цувуулж автоматаар шахаж хуулах функц
+  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Утаснаас олноор нь зэрэг сонгоход хуудас бүрийг ухаалгаар шахаж хурдан хуулах функц
   const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -407,13 +414,14 @@ export default function AdminPage() {
 
       const uploadedUrls: string[] = [];
       for (let i = 0; i < totalFiles; i++) {
-        setChapterUploadProgress(`Хуулж байна: ${i + 1} / ${totalFiles}`);
+        setChapterUploadProgress(`Шахаж байна: ${i + 1} / ${totalFiles} хуудас 🛠️`);
+        
+        // 🚀 УТАСНЫ ХАМГААЛАЛТ: Манганы хуудас бүрийг утаснаас уншихдаа автоматаар шахаж хурдасгана
+        const compressedBlob = await compressImage(files[i], 800, 1200, 0.65);
+        
+        setChapterUploadProgress(`R2 руу илгээж байна: ${i + 1} / ${totalFiles} 🚀`);
         
         const formData = new FormData();
-        
-        // 🚀 УТАСНЫ ХАМГААЛАЛТ: Манганы хуудас бүрийг утаснаас уншихдаа автоматаар шахаж хэмжээг нь жижиг болгоно
-        const compressedBlob = await compressImage(files[i], 900, 1400, 0.75);
-        
         const fileExtension = files[i].name.split('.').pop() || 'jpg';
         const cleanFileName = `page-${i}-${Date.now()}.${fileExtension}`;
         const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
@@ -435,11 +443,12 @@ export default function AdminPage() {
 
       const finalImages = [...currentImages, ...uploadedUrls].join(",");
       setChapterForm(prev => ({ ...prev, images: finalImages }));
-      setChapterUploadProgress("Бүх зураг амжилттай хуулагдлаа! 🎉");
+      setChapterUploadProgress("Бүх зургийг амжилттай шахаж хууллаа! 🎉");
       e.target.value = ""; 
     } catch (err) {
       console.error(err);
       alert("Зураг хуулахад алдаа гарлаа.");
+      setChapterUploadProgress("");
     } finally {
       setChapterImagesUploading(false);
     }
@@ -466,8 +475,7 @@ export default function AdminPage() {
     const updatedArray = imagesArray.filter((_, index) => index !== indexToRemove);
     setChapterForm(prev => ({ ...prev, images: updatedArray.join(",") }));
   };
-
-   // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
+  // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
   const [chapterForm, setChapterForm] = useState<ChapterForm>({
     manga_id: "", chapter_number: 1, images: "", is_premium: false
   });
@@ -600,8 +608,7 @@ export default function AdminPage() {
       </main>
     );
   }
-
-   if (!isAdmin) {
+  if (!isAdmin) {
     return (
       <main className="min-h-screen bg-[#0B0F14] flex items-center justify-center p-4">
         <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-8 shadow-2xl space-y-6">
@@ -718,8 +725,7 @@ export default function AdminPage() {
               <Search className="absolute left-3 top-2.5 text-gray-600" size={14} />
             </div>
           </div>
-
-                   <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[#232A35] text-gray-500 font-bold uppercase tracking-wider">
@@ -806,7 +812,7 @@ export default function AdminPage() {
           )}
         </div>
 
-     {/* МАНГА НЭМЭХ БОЛОН ФАЙЛ УДБЛАД ХИЙХ ФОРМ */}
+        {/* МАНГА НЭМЭХ БОЛОН ФАЙЛ УДБЛАД ХИЙХ ФОРМ */}
         <div className="grid gap-8 md:grid-cols-2">
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
@@ -826,8 +832,7 @@ export default function AdminPage() {
                   <p className="mt-1 text-[10px] text-gray-500 font-mono">Автомат ID: {generateMangaId(mangaForm.title)}</p>
                 )}
               </div>
-
-                            <div>
+              <div>
                 <label className="block mb-1.5">Төрөл (Genres - Таслалаар зааглах):</label>
                 <input
                   type="text"
@@ -838,7 +843,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* 🚀 ЗАСВАРЛАВ: Ковер зураг сонгоход шууд урьдчилж хараад линкийг нь ил гаргадаг UI */}
+              {/* 🚀 ЗАСВАРЛАВ: Ковер зураг сонгоход явцыг нь ногоон гэрэлтэй Loader-оор харуулдаг UI */}
               <div>
                 <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг (Утаснаас сонгох):</label>
                 <div className="flex flex-col gap-3">
@@ -853,21 +858,22 @@ export default function AdminPage() {
                     />
                   </label>
                   
-                  {/* Сонгосон зургийг доор нь том сүрлэгээр харуулна */}
+                  {/* 🚀 НЭМЭВ: Зураг шахах болон хуулах явцыг админд маш тодорхой харуулна */}
+                  {imageUploading && chapterUploadProgress && !mangaForm.is_banner && (
+                    <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
+                      <Loader2 size={14} className="animate-spin text-green-500" />
+                      <span>{chapterUploadProgress}</span>
+                    </div>
+                  )}
+
                   {mangaForm.cover_image && (
                     <div className="relative w-28 aspect-[3/4] rounded-xl overflow-hidden bg-[#0B0F14] border border-[#232A35] shadow-md">
                       <img src={mangaForm.cover_image} alt="Preview" className="w-full h-full object-cover" />
-                      {imageUploading && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <Loader2 size={16} className="animate-spin text-green-500" />
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 🚀 ЗАСВАРЛАВ: Зургийн линкийг шууд харуулж хянах боломжтой инпут талбар */}
               <div>
                 <label className="block mb-1.5">Зургийн линк (URL - Автоматаар бөглөгдөнө):</label>
                 <input
@@ -879,11 +885,11 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* 🚀 ШИНЭ: Баннер болгох чеклист идэвхжсэн үед урт баннер зураг оруулах талбарууд нээгдэнэ */}
+              {/* 🚀 ШИНЭ: Баннер болгох үед урт баннер зураг оруулах, явцыг нь секундын нарийвчлалтай харуулах хэсэг */}
               {mangaForm.is_banner && (
                 <div className="border border-green-500/20 bg-green-500/5 p-4 rounded-2xl space-y-4 animate-fadeIn">
                   <div>
-                    <label className="block mb-1.5 text-green-400 font-bold">Манганы урт Баннер Зураг (Landscape - 16:9 хэмжээтэй):</label>
+                    <label className="block mb-1.5 text-green-400 font-bold">Манганы урт Баннер Зураг (Landscape):</label>
                     <div className="flex flex-col gap-3">
                       <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
                         <ImageIcon size={16} />
@@ -896,15 +902,17 @@ export default function AdminPage() {
                         />
                       </label>
                       
-                      {/* Сонгосон баннерыг урт хэмжээгээр урьдчилж харуулна */}
+                      {/* 🚀 НЭМЭВ: Баннер шахах болах хуулах явцыг харуулна */}
+                      {imageUploading && chapterUploadProgress && mangaForm.banner_image && (
+                        <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
+                          <Loader2 size={14} className="animate-spin text-green-500" />
+                          <span>{chapterUploadProgress}</span>
+                        </div>
+                      )}
+
                       {mangaForm.banner_image && (
                         <div className="relative w-full aspect-[21/9] rounded-xl overflow-hidden bg-[#0B0F14] border border-[#232A35] shadow-md">
                           <img src={mangaForm.banner_image} alt="Banner Preview" className="w-full h-full object-cover" />
-                          {imageUploading && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <Loader2 size={16} className="animate-spin text-green-500" />
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -932,9 +940,7 @@ export default function AdminPage() {
                   className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-medium"
                 />
               </div>
-
-
-                            <div>
+              <div>
                 <label className="block mb-1.5">Төлөв (Status):</label>
                 <select
                   value={mangaForm.status}
@@ -985,7 +991,6 @@ export default function AdminPage() {
               </button>
             </form>
           </div>
-
           {/* БҮЛЭГ НЭМЭХ ХЭСЭГ */}
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
@@ -1037,8 +1042,6 @@ export default function AdminPage() {
                   <p className="mt-2 text-xs font-bold text-green-400 animate-pulse">{chapterUploadProgress}</p>
                 )}
               </div>
-
-                           {/* 🟩 Хуулсан зургуудыг утаснаас сонгонгуут R2-ыг хүлээхгүй шууд харуулна */}
               {chapterForm.images && (
                 <div className="mt-4 border-t border-[#232A35]/60 pt-4 space-y-3">
                   <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
@@ -1118,8 +1121,7 @@ export default function AdminPage() {
             </form>
           </div>
         </div>
-
-       {/* МАНГАНУУДЫН ЖАГСААЛТ ХАРАГДАХ ХЭСЭГ */}
+        {/* МАНГАНУУДЫН ЖАГСААЛТ ХАРАГДАХ ХЭСЭГ */}
         <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
           <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
             <BookOpen size={18} className="text-green-400" /> Нийт манганууд ({mangas.length})
@@ -1192,7 +1194,6 @@ export default function AdminPage() {
                     onClick={() => {
                       setIsEditingManga(true);
                       setOldMangaId(m.id);
-                      // 🚀 ЗАСВАРЛАВ: Манга засах үед banner_image-ийг өгөгдлийн сангаас уншиж стэйтэд холбоно
                       setMangaForm({
                         title: m.title, 
                         description: m.description || "",
@@ -1224,32 +1225,96 @@ export default function AdminPage() {
         </div>
 
       </div> {/* Үндсэн агуулга хаах div */}
+      {/* ГИШҮҮНИЙ МЭДЭЭЛЭЛ ЗАСАХ ПОПАП ЦОНХ */}
+      {selectedUserForEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-xs">
+            <div className="flex items-center gap-2 border-b border-[#232A35] pb-3 mb-4">
+              <ShieldCheck className="text-green-400" size={20} />
+              <div>
+                <h3 className="text-sm font-bold text-white">Хэтэвч засах</h3>
+                <p className="text-[10px] text-gray-500 font-bold mt-0.5">{selectedUserForEdit.username || selectedUserForEdit.displayName || "Хэрэглэгч"}</p>
+              </div>
+            </div>
 
-                  <div className="flex items-center gap-2 pt-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConfirmOpen(false);
-                  setPendingActionType(null);
-                }}
-                className="flex-1 rounded-xl border border-[#232A35] bg-[#0B0F14] py-2.5 font-bold text-gray-400 hover:text-white transition active:scale-95"
-              >
-                Цуцлах
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (pendingActionType === "coins") {
-                    executeUserWalletUpdate();
-                  }
-                }}
-                className="flex-1 rounded-xl bg-green-500 py-2.5 font-black text-black hover:bg-green-400 transition active:scale-95"
-              >
-                Зөвшөөрөх
-              </button>
+            <form onSubmit={handleUpdateUserWallet} className="space-y-4 font-semibold text-gray-300">
+              <div>
+                <label className="block text-gray-400 font-bold mb-1.5">Койны үлдэгдэл (Coins):</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={editCoinsAmount}
+                    onChange={(e) => setEditCoinsAmount(parseInt(e.target.value) || 0)}
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] pl-9 pr-3 py-3 text-white font-bold text-sm outline-none focus:border-green-500 transition-all"
+                  />
+                  <Coins className="absolute left-3 top-3.5 text-yellow-500" size={14} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-bold mb-1.5">Эрхийн төрөл (Access Type):</label>
+                <select
+                  value={editAccessType}
+                  onChange={(e) => setEditAccessType(e.target.value)}
+                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-3 text-white outline-none focus:border-green-500 transition-all font-bold cursor-pointer"
+                >
+                  <option value="Free">Үнэгүй (Free)</option>
+                  <option value="Premium">Premium VIP</option>
+                </select>
+              </div>
+
+              {(editAccessType === "Premium" || editAccessType === "premium") && (
+                <div>
+                  <label className="block text-gray-400 font-bold mb-1.5">VIP эрх сунгах хоног:</label>
+                  <select
+                    value={editAccessDays}
+                    onChange={(e) => setEditAccessAccessDays(Number(e.target.value))}
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-3 text-white outline-none focus:border-green-500 transition-all font-bold cursor-pointer text-green-400"
+                  >
+                    <option value={30}>30 Хоног (1 Сар)</option>
+                    <option value={90}>90 Хоног (3 Сар)</option>
+                    <option value={180}>180 Хоног (6 Сар)</option>
+                    <option value={365}>365 Хоног (1 Жил)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForEdit(null)}
+                  className="w-1/3 rounded-xl border border-[#232A35] bg-[#0B0F14] py-3 font-bold text-gray-400 hover:text-white transition active:scale-95"
+                >
+                  Буцах
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 rounded-xl bg-green-500 py-3 font-black text-black hover:bg-green-400 transition active:scale-95 flex items-center justify-center gap-1"
+                >
+                  <Check size={14} /> Хадгалах
+                </button>
+              </div>
+            </form>
           </div>
-     
-                       <div className="flex items-center gap-2 pt-1 text-xs">
+        </div>
+      )}
+
+      {/* 🔔 ТАНЫ САЙТЫН ДИЗАЙНТАЙ ТӨГС ЗОХИЦОХ БАТАЛГААЖУУЛАХ ПОПАП ЦОНХ */}
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-xs rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-center space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+              <ShieldAlert size={20} />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="text-sm font-black uppercase tracking-wider text-gray-200">Үйлдэл баталгаажуулах</h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed font-bold px-2">
+                {confirmMessage}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 text-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -1272,5 +1337,9 @@ export default function AdminPage() {
                 Зөвшөөрөх
               </button>
             </div>
-            </main>
-  )}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
