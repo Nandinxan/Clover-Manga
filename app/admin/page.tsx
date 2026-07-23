@@ -25,7 +25,6 @@ interface ChapterForm {
   images: string;
   is_premium: boolean;
 }
-
 // 🚀 КИРИЛЛ ҮСГИЙГ АНГЛИ ҮСЭГ РҮҮ ХӨРВҮҮЛЖ, АВТОМАТ ID ҮҮСГЭХ ФУНКЦ
 const generateMangaId = (title: string): string => {
   const cyrillicToLatin: { [key: string]: string } = {
@@ -42,54 +41,6 @@ const generateMangaId = (title: string): string => {
     .replace(/-+/g, '-');
 };
 
-// 🚀 УТАСНЫ ХАМГААЛАЛТ: ОРЖ ИРСЭН ТОМ ЗУРГИЙГ 0.2 СЕКУНДЭД ХУРДАН ШАХАЖ ХЭМЖЭЭГ БАГАСГАХ ФУНКЦ
-const compressImage = (file: File, maxWidth = 600, maxHeight = 900, quality = 0.65): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        
-        if (ctx) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = "low"; 
-          ctx.drawImage(img, 0, 0, width, height);
-        }
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Canvas to Blob conversion failed"));
-          },
-          "image/jpeg",
-          quality
-        );
-      };
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -292,26 +243,25 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 МАНГАНЫ ПОСТЕР (КОВЕР): Утаснаас зураг уншихад 0.2 сек-д шахаж, секунд хүрэхгүй хугацаанд R2 руу хуулна
+  // 🚀 МАНГАНЫ ПОСТЕР (КОВЕР): Шахахгүйгээр утаснаас шууд R2 руу маш хурдан хуулна
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Утсан дээр шууд урьдчилж харуулна (Blob Preview)
     const localUrl = URL.createObjectURL(file);
     setMangaForm((prev) => ({ ...prev, cover_image: localUrl }));
 
     try {
       setImageUploading(true);
-      setChapterUploadProgress("Постер зургийг утсан дээр шахаж байна... 🛠️");
-      
-      const compressedBlob = await compressImage(file, 600, 900, 0.65);
-      
-      setChapterUploadProgress("R2 руу маш хурдан хуулж байна... 🚀");
+      setChapterUploadProgress("R2 руу шууд хуулж байна... 🚀");
       
       const formData = new FormData();
+      
+      // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Шахахгүй, зөвхөн нэрийг цэвэр англи болгож шинэ файл үүсгэнэ
       const fileExtension = file.name.split('.').pop() || 'jpg';
       const cleanFileName = `cover-${Date.now()}.${fileExtension}`;
-      const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
+      const renamedFile = new File([file], cleanFileName, { type: file.type });
       
       formData.append("file", renamedFile);
 
@@ -338,8 +288,7 @@ export default function AdminPage() {
       setImageUploading(false);
     }
   };
-
-  // 🚀 БАННЕР ЗУРАГ: Утаснаас баннер уншихад 0.2 сек-д шахаж, секунд хүрэхгүй хугацаанд R2 руу хуулна
+  // 🚀 БАННЕР ЗУРАГ: Шахахгүйгээр утаснаас шууд R2 руу маш хурдан хуулна
   const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -349,16 +298,14 @@ export default function AdminPage() {
 
     try {
       setImageUploading(true);
-      setChapterUploadProgress("Баннерыг хурдан шахаж байна... 🛠️");
-      
-      const compressedBlob = await compressImage(file, 1000, 600, 0.65);
-      
-      setChapterUploadProgress("R2 руу баннерыг хурдан хуулж байна... 🚀");
+      setChapterUploadProgress("R2 руу баннерыг шууд хуулж байна... 🚀");
       
       const formData = new FormData();
+      
+      // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Шахахгүй, зөвхөн нэрийг цэвэр англи болгож шинэ файл үүсгэнэ
       const fileExtension = file.name.split('.').pop() || 'jpg';
       const cleanFileName = `banner-${Date.now()}.${fileExtension}`;
-      const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
+      const renamedFile = new File([file], cleanFileName, { type: file.type });
       
       formData.append("file", renamedFile);
 
@@ -385,13 +332,14 @@ export default function AdminPage() {
       setImageUploading(false);
     }
   };
+
   // 🚀 МАНГА ҮҮСГЭХ ФОРМЫН СТЭЙТ
   const [mangaForm, setMangaForm] = useState<MangaForm>({
     title: "", description: "", cover_image: "", banner_image: "",
     genres: "", status: "ongoing", is_banner: false, is18: false, is_free: false
   });
 
-  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Утаснаас олноор нь зэрэг сонгоход хуудас бүрийг ухаалгаар шахаж хурдан хуулах функц
+  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Утаснаас олноор нь сонгоход шахахгүйгээр шууд R2 руу цувуулж хуулна
   const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -414,17 +362,15 @@ export default function AdminPage() {
 
       const uploadedUrls: string[] = [];
       for (let i = 0; i < totalFiles; i++) {
-        setChapterUploadProgress(`Шахаж байна: ${i + 1} / ${totalFiles} хуудас 🛠️`);
-        
-        // 🚀 УТАСНЫ ХАМГААЛАЛТ: Манганы хуудас бүрийг утаснаас уншихдаа автоматаар шахаж хурдасгана
-        const compressedBlob = await compressImage(files[i], 800, 1200, 0.65);
-        
-        setChapterUploadProgress(`R2 руу илгээж байна: ${i + 1} / ${totalFiles} 🚀`);
+        // Шууд R2 руу илгээж байгааг харуулна
+        setChapterUploadProgress(`R2 руу илгээж байна: ${i + 1} / ${totalFiles} хуудас 🚀`);
         
         const formData = new FormData();
+        
+        // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Нэрийг цэвэр англи болгоно
         const fileExtension = files[i].name.split('.').pop() || 'jpg';
         const cleanFileName = `page-${i}-${Date.now()}.${fileExtension}`;
-        const renamedFile = new File([compressedBlob], cleanFileName, { type: "image/jpeg" });
+        const renamedFile = new File([files[i]], cleanFileName, { type: files[i].type });
         
         formData.append("file", renamedFile);
 
@@ -443,7 +389,7 @@ export default function AdminPage() {
 
       const finalImages = [...currentImages, ...uploadedUrls].join(",");
       setChapterForm(prev => ({ ...prev, images: finalImages }));
-      setChapterUploadProgress("Бүх зургийг амжилттай шахаж хууллаа! 🎉");
+      setChapterUploadProgress("Бүх зургийг амжилттай хууллаа! 🎉");
       e.target.value = ""; 
     } catch (err) {
       console.error(err);
@@ -453,7 +399,6 @@ export default function AdminPage() {
       setChapterImagesUploading(false);
     }
   };
-
   const moveImageOrder = (index: number, direction: "up" | "down") => {
     if (!chapterForm.images) return;
     const imagesArray = chapterForm.images.split(",").filter(Boolean);
@@ -475,6 +420,7 @@ export default function AdminPage() {
     const updatedArray = imagesArray.filter((_, index) => index !== indexToRemove);
     setChapterForm(prev => ({ ...prev, images: updatedArray.join(",") }));
   };
+
   // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
   const [chapterForm, setChapterForm] = useState<ChapterForm>({
     manga_id: "", chapter_number: 1, images: "", is_premium: false
@@ -487,12 +433,12 @@ export default function AdminPage() {
       return alert("Манганы Гарчгийг заавал бөглөнө үү!");
     }
     
-    // 🚀 НЭМЭВ: Зураг цаанаа R2 руу хуулагдаж дуусахыг хүлээлгэдэг хамгаалалт
+    // 🚀 НЭМЭВ: Зураг цаанаа R2 руу хуулагдаж дуусахыс өмнө хадгалахыг гацаана
     if (imageUploading) {
       return alert("Зураг цаанаа Cloudflare R2 руу хуулагдаж байна. Түр хүлээгээд линк нь автоматаар инпут дээр гарч ирсний дараа хадгална уу!");
     }
 
-    // 🚀 НЭМЭВ: Хэрэв линк нь blob: гэж эхэлсэн түр зуурын линк байвал өгөгдлийн санг харлуулахаас сэргийлж хадгалахгүй гацаана
+    // 🚀 НЭМЭВ: Өгөгдлийн санг харлуулахаас сэргийлж түр зуурын blob линк хадгалахыг блокдоно
     if (mangaForm.cover_image.startsWith("blob:") || mangaForm.banner_image.startsWith("blob:")) {
       return alert("Зураг R2 руу хуулагдаж дуусаагүй байна. 1 секунд хүлээгээд дахин оролдоно уу.");
     }
@@ -534,7 +480,6 @@ export default function AdminPage() {
       alert("Манга хадгалахад алдаа гарлаа.");
     }
   };
-
   const handleDeleteManga = async (id: string) => {
     if (!confirm("Энэ manga-г бүрмөсөн устгахдаа итгэлтэй байна уу?")) return;
     try {
@@ -699,7 +644,6 @@ export default function AdminPage() {
           </div>
         </div>
       </header>
-
       {/* Үндсэн агуулга */}
       <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-8">
         
@@ -725,6 +669,7 @@ export default function AdminPage() {
               <Search className="absolute left-3 top-2.5 text-gray-600" size={14} />
             </div>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -811,7 +756,6 @@ export default function AdminPage() {
             </div>
           )}
         </div>
-
         {/* МАНГА НЭМЭХ БОЛОН ФАЙЛ УДБЛАД ХИЙХ ФОРМ */}
         <div className="grid gap-8 md:grid-cols-2">
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
@@ -832,6 +776,7 @@ export default function AdminPage() {
                   <p className="mt-1 text-[10px] text-gray-500 font-mono">Автомат ID: {generateMangaId(mangaForm.title)}</p>
                 )}
               </div>
+
               <div>
                 <label className="block mb-1.5">Төрөл (Genres - Таслалаар зааглах):</label>
                 <input
@@ -843,9 +788,9 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* 🚀 ЗАСВАРЛАВ: Ковер зураг сонгоход явцыг нь ногоон гэрэлтэй Loader-оор харуулдаг UI */}
+              {/* Ковер зураг шууд уpload хийх UI */}
               <div>
-                <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг (Утаснаас сонгох):</label>
+                <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг (Утаснаас шууд хуулах):</label>
                 <div className="flex flex-col gap-3">
                   <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
                     <ImageIcon size={16} />
@@ -858,7 +803,6 @@ export default function AdminPage() {
                     />
                   </label>
                   
-                  {/* 🚀 НЭМЭВ: Зураг шахах болон хуулах явцыг админд маш тодорхой харуулна */}
                   {imageUploading && chapterUploadProgress && !mangaForm.is_banner && (
                     <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
                       <Loader2 size={14} className="animate-spin text-green-500" />
@@ -885,7 +829,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* 🚀 ШИНЭ: Баннер болгох үед урт баннер зураг оруулах, явцыг нь секундын нарийвчлалтай харуулах хэсэг */}
+              {/* Баннер зураг шууд уpload хийх UI */}
               {mangaForm.is_banner && (
                 <div className="border border-green-500/20 bg-green-500/5 p-4 rounded-2xl space-y-4 animate-fadeIn">
                   <div>
@@ -902,7 +846,6 @@ export default function AdminPage() {
                         />
                       </label>
                       
-                      {/* 🚀 НЭМЭВ: Баннер шахах болах хуулах явцыг харуулна */}
                       {imageUploading && chapterUploadProgress && mangaForm.banner_image && (
                         <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
                           <Loader2 size={14} className="animate-spin text-green-500" />
@@ -940,6 +883,7 @@ export default function AdminPage() {
                   className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-medium"
                 />
               </div>
+
               <div>
                 <label className="block mb-1.5">Төлөв (Status):</label>
                 <select
@@ -1023,9 +967,9 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Олноор зураг сонгох */}
+              {/* Олноор зураг сонгох шууд хуулалт */}
               <div>
-                <label className="block mb-1.5 text-green-400 font-bold">Манганы хуудсууд (Утаснаас олноор нь зэрэг сонгох):</label>
+                <label className="block mb-1.5 text-green-400 font-bold">Манганы хуудсууд (Утаснаас олноор нь шууд хуулах):</label>
                 <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-4 text-gray-400 cursor-pointer hover:border-green-500/50 transition">
                   <ImageIcon size={18} />
                   <span>Манганы бүх хуудсыг зэрэг сонгох</span>
@@ -1042,6 +986,7 @@ export default function AdminPage() {
                   <p className="mt-2 text-xs font-bold text-green-400 animate-pulse">{chapterUploadProgress}</p>
                 )}
               </div>
+
               {chapterForm.images && (
                 <div className="mt-4 border-t border-[#232A35]/60 pt-4 space-y-3">
                   <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
@@ -1299,7 +1244,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🔔 ТАНЫ САЙТЫН ДИЗАЙНТАЙ ТӨГС ЗОХИЦОХ БАТАЛГААЖУУЛАХ ПОПАП ЦОНХ */}
+      {/* 🔔 БАТАЛГААЖУУЛАХ ПОПАП ЦОНХ */}
       {isConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="w-full max-w-xs rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-center space-y-4">
