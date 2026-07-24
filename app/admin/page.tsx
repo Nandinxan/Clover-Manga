@@ -4,162 +4,138 @@ import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase"; 
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { collection, addDoc, setDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where } from "firebase/firestore";
-import { PlusCircle, BookOpen, ShieldAlert, LogOut, Check, FolderPlus, Layers, Users, Coins, Search, ShieldCheck, Mail, Lock as LockIcon, Trash2, Edit3, Image as ImageIcon, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { PlusCircle, BookOpen, ShieldAlert, LogOut, Check, FolderPlus, Layers, Users, Coins, Search, ShieldCheck, Mail, Lock as LockIcon, Trash2, Edit3, ImageIcon, Loader2 } from "lucide-react";
 
 interface MangaForm {
   title: string;
   description: string;
   cover_image: string;
-  banner_image: string; 
+  banner_image: string;
   genres: string;
-  status: "ongoing" | "completed" | "paused"; 
+  status: "ongoing" | "paused" | "completed";
   is_banner: boolean;
   is18: boolean;
-  is_free: boolean; 
+  is_free: boolean;
 }
 
 interface ChapterForm {
-  id?: string; 
   manga_id: string;
   chapter_number: number;
   images: string;
   is_premium: boolean;
 }
-// 🚀 КИРИЛЛ ҮСГИЙГ АНГЛИ ҮСЭГ РҮҮ ХӨРВҮҮЛЖ, АВТОМАТ ID ҮҮСГЭХ ФУНКЦ
-const generateMangaId = (title: string): string => {
-  const cyrillicToLatin: { [key: string]: string } = {
-    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','ө':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ү':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
-  };
-  return title
-    .toLowerCase()
-    .split('')
-    .map(char => cyrillicToLatin[char] || char)
-    .join('')
-    .replace(/[^a-z0-9\s-]/g, '') 
-    .trim()
-    .replace(/\s+/g, '-') 
-    .replace(/-+/g, '-');
-};
 
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mangas, setMangas] = useState<any[]>([]);
-  const [chapters, setChapters] = useState<any[]>([]); 
 
   // Гишүүдийн койн, эрх удирдах төлөвүүд
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [viewAllUsers, setViewAllUsers] = useState(false); 
-  
+  const [visibleUsersCount, setVisibleUsersCount] = useState<number>(5); 
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<any>(null);
   const [editCoinsAmount, setEditCoinsAmount] = useState<number>(0);
   const [editAccessType, setEditAccessType] = useState<string>("Free");
   const [editAccessDays, setEditAccessAccessDays] = useState<number>(30);
-
-  // 🔔 Койн болон Эрх өөрчлөх үеийн баталгаажуулах попап цонхны төлөвүүд
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [confirmMessage, setConfirmMessage] = useState("");
-  const [pendingActionType, setPendingActionType] = useState<"coins" | "access" | null>(null);
 
   // Gmail болон Нууц үгээр нэвтрэх төлөвүүд
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
 
-  // 🚀 Манга болон Бүлэг засах ухаалаг төлөвүүд
+  // Манга болон Бүлэг засах ухаалаг төлөвүүд
   const [isEditingManga, setIsEditingManga] = useState(false);
   const [oldMangaId, setOldMangaId] = useState("");
-  const [isEditingChapter, setIsEditingChapter] = useState(false); 
 
-  // Зураг хуулахад ашиглах төлөвүүд
+  // Бүлэг удирдах, устгахад ашиглах төлөвүүд
+  const [selectedMangaForChapters, setSelectedMangaForChapters] = useState<string>("");
+  const [chaptersList, setChaptersList] = useState<any[]>([]);
+  const [chaptersLoading, setChaptersLoading] = useState(false);
+
+  // Зураг хуулалтын явцыг хувиар (%) харуулах төлөвүүд
   const [imageUploading, setImageUploading] = useState(false);
+  const [coverUploadProgress, setCoverUploadProgress] = useState<number>(0); 
+  
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerUploadProgress, setBannerUploadProgress] = useState<number>(0); 
+  
   const [chapterImagesUploading, setChapterImagesUploading] = useState(false);
   const [chapterUploadProgress, setChapterUploadProgress] = useState<string>("");
-
-  // 🟩 Профайл нэрийг хадгалах төлөв
-  const [profileName, setProfileName] = useState<string>("Хэрэглэгч");
+  const [chapterCurrentPageProgress, setChapterCurrentPageProgress] = useState<number>(0); 
 
   const allowedEmails = [
     "nandinxanclover@gmail.com",
     "tsogoonandinerdene31@gmail.com"
   ];
-  // 🚀 1. АЛХАМ: Auth төлөвийг шалгах + Админы нэрийг Realtime сонсох
   useEffect(() => {
-    let unsubscribeUserDoc: () => void;
+    let unsubscribeUsers: () => void;
+    let unsubscribeMangas: () => void;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && currentUser.email && allowedEmails.includes(currentUser.email)) {
-        await currentUser.getIdToken(true); 
         setUser(currentUser);
         setIsAdmin(true);
+        try {
+          const mangaRef = collection(db, "manga");
+          unsubscribeMangas = onSnapshot(mangaRef, (snapshot) => {
+            setMangas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          }, (err) => {
+            console.error("Манга датаг шууд татахад алдаа гарлаа:", err);
+          });
+          
+          const usersRef = collection(db, "users");
+          const q = query(usersRef, orderBy("createdAt", "desc"));
+          
+          unsubscribeUsers = onSnapshot(q, (snapshot) => {
+            setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
+          }, (err) => {
+            console.error("Хэрэглэгчдийн датаг шууд татахад алдаа гарлаа:", err);
+          });
 
-        const userRef = doc(db, "users", currentUser.uid);
-        unsubscribeUserDoc = onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            const userData = snap.data();
-            setProfileName(userData.username || userData.displayName || currentUser.displayName || "Хэрэглэгч");
-          } else {
-            setProfileName(currentUser.displayName || "Хэрэглэгч");
-          }
-        }, (err) => {
-          console.error("Нэр уншихад алдаа гарлаа:", err);
-        });
-
+        } catch (e) {
+          console.error("Дата уншихад алдаа гарлаа:", e);
+        }
       } else {
         setUser(null);
         setIsAdmin(false);
-        setProfileName("Хэрэглэгч");
-        if (unsubscribeUserDoc) unsubscribeUserDoc();
       }
       setLoading(false);
     });
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeUserDoc) unsubscribeUserDoc();
+      if (unsubscribeUsers) unsubscribeUsers();
+      if (unsubscribeMangas) unsubscribeMangas();
     };
   }, []);
 
-  // 🚀 2. АЛХАМ: Датабаазын Realtime холболтуудыг асаах
+  // Сонгосон манганы бүлгүүдийг Firestore-оос Realtime Сонсож татах логик
   useEffect(() => {
-    if (!isAdmin) return; 
+    if (!selectedMangaForChapters) {
+      setChaptersList([]);
+      return;
+    }
 
-    let unsubscribeUsers: () => void;
-    let unsubscribeChapters: () => void;
+    setChaptersLoading(true);
+    const chaptersRef = collection(db, "chapters");
+    const q = query(
+      chaptersRef, 
+      where("manga_id", "==", selectedMangaForChapters.toLowerCase()),
+      orderBy("chapter_number", "asc")
+    );
 
-    const fetchData = async () => {
-      try {
-        const mangaSnap = await getDocs(collection(db, "manga"));
-        setMangas(mangaSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        
-        const usersRef = collection(db, "users");
-        unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
-          setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
-        }, (err) => {
-          console.error(err);
-        });
+    const unsubscribeChapters = onSnapshot(q, (snapshot) => {
+      setChaptersList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setChaptersLoading(false);
+    }, (err) => {
+      console.error("Бүлгүүдийг татахад алдаа гарлаа:", err);
+      setChaptersLoading(false);
+    });
 
-        const chaptersRef = collection(db, "chapters");
-        unsubscribeChapters = onSnapshot(chaptersRef, (snapshot) => {
-          setChapters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (err) => {
-          console.error(err);
-        });
-
-      } catch (e) {
-        console.error(e);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      if (unsubscribeUsers) unsubscribeUsers();
-      if (unsubscribeChapters) unsubscribeChapters();
-    };
-  }, [isAdmin]); 
+    return () => unsubscribeChapters();
+  }, [selectedMangaForChapters]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,11 +151,8 @@ export default function AdminPage() {
     try {
       await signInWithEmailAndPassword(auth, emailInput.trim().toLowerCase(), passwordInput);
     } catch (error: any) {
-      if (error.code === "auth/wrong-password" || error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
-        setAuthError("Имэйл эсвэл нууц үг буруу байна. Дахин шалгана уу.");
-      } else {
-        setAuthError("Нэвтрэхэд алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.");
-      }
+      console.error(error);
+      setAuthError("Нэвтрэх хуудасны мэдээлэл буруу байна. (Нууц үгээ шалгана уу)");
     }
   };
 
@@ -190,19 +163,10 @@ export default function AdminPage() {
     setEmailInput("");
     setPasswordInput("");
   };
-  // 🔔 БАТАЛГААЖУУЛАХ ПОПАПЫГ ИДЭВХЖҮҮЛЭХ ЭХЛЭЛ ЛОГИК
+  // ГИШҮҮНИЙ КОЙН БОЛОН VIP ЭРХИЙГ ШИНЭЧЛЭХ ЛОГИК
   const handleUpdateUserWallet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserForEdit) return alert("Засах хэрэглэгчийг сонгоно уу!");
-
-    setConfirmMessage("10 Coin хасагдах болно. Та зөвшөөрч байна уу?");
-    setPendingActionType("coins"); 
-    setIsConfirmOpen(true);
-  };
-
-  // 🚀 БАТАЛГААЖУУЛАЛТЫН ДАРАА ХЭРЭГЛЭГЧИЙН КОЙН БОЛОН VIP ЭРХИЙГ ШИНЭЧЛЭХ ҮНДСЭН ФУНКЦ
-  const executeUserWalletUpdate = async () => {
-    if (!selectedUserForEdit) return;
 
     try {
       const userRef = doc(db, "users", selectedUserForEdit.uid);
@@ -224,253 +188,350 @@ export default function AdminPage() {
 
       alert("Гишүүний мэдээлэл амжилттай шинэчлэгдлээ!");
       setSelectedUserForEdit(null); 
-      setIsConfirmOpen(false); 
-      setPendingActionType(null);
     } catch (error) {
       console.error(error);
       alert("Гишүүний датаг шинэчлэхэд алдаа гарлаа.");
     }
   };
 
-  const handleDeleteUserFromDb = async (uid: string) => {
-    if (!confirm("Энэ хэрэглэгчийн датаг өгөгдлийн сангаас бүрмөсөн устгах уу?")) return;
-    try {
-      await deleteDoc(doc(db, "users", uid));
-      alert("Хэрэглэгчийн дата амжилттай устлаа!");
-    } catch (error) {
-      console.error(error);
-      alert("Устгахад алдаа гарлаа.");
-    }
-  };
-
-  // 🚀 МАНГАНЫ ПОСТЕР (КОВЕР): Шахахгүйгээр утаснаас шууд R2 руу маш хурдан хуулна
+  // Ковер зургийг R2 руу хуулах явцыг хувиар (%) тооцоолно
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0]; // 🚀 БҮРЭН ЗАСАГДВАРЛАГДСАН: Тэгш хаалт [0] нэмж алдааг бүрмөсөн арилгав
     if (!file) return;
-
-    // Утсан дээр шууд урьдчилж харуулна (Blob Preview)
-    const localUrl = URL.createObjectURL(file);
-    setMangaForm((prev) => ({ ...prev, cover_image: localUrl }));
 
     try {
       setImageUploading(true);
-      setChapterUploadProgress("R2 руу шууд хуулж байна... 🚀");
-      
-      const formData = new FormData();
-      
-      // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Шахахгүй, зөвхөн нэрийг цэвэр англи болгож шинэ файл үүсгэнэ
-      const fileExtension = file.name.split('.').pop() || 'jpg';
-      const cleanFileName = `cover-${Date.now()}.${fileExtension}`;
-      const renamedFile = new File([file], cleanFileName, { type: file.type });
-      
-      formData.append("file", renamedFile);
+      setCoverUploadProgress(0);
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1080;
+          let width = img.width;
+          let height = img.height;
 
-      const data = await response.json();
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
 
-      if (data.success) {
-        setMangaForm((prev) => ({ ...prev, cover_image: data.url }));
-        setChapterUploadProgress("Постер зураг амжилттай хуулагдлаа! 🎉");
-        setTimeout(() => setChapterUploadProgress(""), 2000);
-      } else {
-        alert("Зураг оруулахад алдаа гарлаа: " + data.error);
-        setChapterUploadProgress("");
-      }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            async (blob) => {
+              if (!blob) {
+                alert("Зургийг хөрвүүлэхэд алдаа гарлаа.");
+                setImageUploading(false);
+                return;
+              }
+
+              const cleanFileName = `cover_${Date.now()}.jpg`;
+              const formData = new FormData();
+              formData.append("file", blob, cleanFileName);
+
+              const xhr = new XMLHttpRequest();
+              xhr.open("POST", "/api/upload", true);
+
+              xhr.upload.onprogress = (progressEvent) => {
+                if (progressEvent.lengthComputable) {
+                  const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                  setCoverUploadProgress(percentage);
+                }
+              };
+
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.url) {
+                      setMangaForm((prev: MangaForm) => ({ ...prev, cover_image: data.url }));
+                    } else {
+                      alert("R2 API-оос зургийн линк ирсэнгүй.");
+                    }
+                  } catch (err) {
+                    alert("Хариу уншихад алдаа гарлаа.");
+                  }
+                } else {
+                  alert("R2 руу хуулахад алдаа гарлаа.");
+                }
+                setImageUploading(false);
+              };
+
+              xhr.onerror = () => {
+                alert("Сүлжээний алдаа гарлаа.");
+                setImageUploading(false);
+              };
+
+              xhr.send(formData);
+            },
+            "image/jpeg",
+            0.8
+          );
+        };
+      };
     } catch (err) {
-      console.error(err);
-      alert("Зураг ачаалахад алдаа гарлаа.");
-      setChapterUploadProgress("");
-    } finally {
+      console.error("Ерөнхий алдаа:", err);
       setImageUploading(false);
     }
   };
-  // 🚀 БАННЕР ЗУРАГ: Шахахгүйгээр утаснаас шууд R2 руу маш хурдан хуулна
-  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Баннер зургийг R2 руу хуулах явцыг хувиар (%) тооцоолно
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; // 🚀 БҮРЭН ЗАСАГДВАРЛАГДСАН: Тэгш хаалт болон индексийг зөв тавьж алдааг бүрмөсөн арилгав
     if (!file) return;
 
-    const localUrl = URL.createObjectURL(file);
-    setMangaForm((prev) => ({ ...prev, banner_image: localUrl }));
-
     try {
-      setImageUploading(true);
-      setChapterUploadProgress("R2 руу баннерыг шууд хуулж байна... 🚀");
-      
-      const formData = new FormData();
-      
-      // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Шахахгүй, зөвхөн нэрийг цэвэр англи болгож шинэ файл үүсгэнэ
-      const fileExtension = file.name.split('.').pop() || 'jpg';
-      const cleanFileName = `banner-${Date.now()}.${fileExtension}`;
-      const renamedFile = new File([file], cleanFileName, { type: file.type });
-      
-      formData.append("file", renamedFile);
+      setBannerUploading(true);
+      setBannerUploadProgress(0);
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1920; 
+          let width = img.width;
+          let height = img.height;
 
-      const data = await response.json();
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
 
-      if (data.success) {
-        setMangaForm((prev) => ({ ...prev, banner_image: data.url }));
-        setChapterUploadProgress("Баннер зураг амжилттай хуулагдлаа! 🎉");
-        setTimeout(() => setChapterUploadProgress(""), 2000);
-      } else {
-        alert("Баннер зураг оруулахад алдаа гарлаа: " + data.error);
-        setChapterUploadProgress("");
-      }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            async (blob) => {
+              if (!blob) {
+                alert("Зургийг хөрвүүлэхэд алдаа гарлаа.");
+                setBannerUploading(false);
+                return;
+              }
+
+              const cleanFileName = `banner_${Date.now()}.jpg`;
+              const formData = new FormData();
+              formData.append("file", blob, cleanFileName);
+
+              const xhr = new XMLHttpRequest();
+              xhr.open("POST", "/api/upload", true);
+
+              xhr.upload.onprogress = (progressEvent) => {
+                if (progressEvent.lengthComputable) {
+                  const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                  setBannerUploadProgress(percentage);
+                }
+              };
+
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.url) {
+                      setMangaForm((prev: MangaForm) => ({ ...prev, banner_image: data.url }));
+                    } else {
+                      alert("R2 API-оос зургийн линк ирсэнгүй.");
+                    }
+                  } catch (err) {
+                    alert("Хариу уншихад алдаа гарлаа.");
+                  }
+                } else {
+                  alert("R2 руу хуулахад алдаа гарлаа.");
+                }
+                setBannerUploading(false);
+              };
+
+              xhr.onerror = () => {
+                alert("Сүлжээний алдаа гарлаа.");
+                setBannerUploading(false);
+              };
+
+              xhr.send(formData);
+            },
+            "image/jpeg",
+            0.85
+          );
+        };
+      };
     } catch (err) {
-      console.error(err);
-      alert("Баннер зураг ачаалахад алдаа гарлаа.");
-      setChapterUploadProgress("");
-    } finally {
-      setImageUploading(false);
+      console.error("Ерөнхий алдаа:", err);
+      setBannerUploading(false);
     }
   };
+  // Олон зураг зэрэг хуулахад тухайн хуудас бүрийн ачаалж буй хувийг (%) тодорхой харуулна
+  const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (!chapterForm.manga_id) {
+      alert("Зураг оруулахаас өмнө Мангаг заавал сонгоно уу!");
+      e.target.value = "";
+      return;
+    }
 
-  // 🚀 МАНГА ҮҮСГЭХ ФОРМЫН СТЭЙТ
+    const compressImage = (file: File): Promise<Blob> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error("Хөрвүүлэлт бүтэлгүйтэв."));
+              },
+              "image/jpeg",
+              0.85
+            );
+          };
+          img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+      });
+    };
+
+    const uploadSingleFileXHR = (blob: Blob, fileName: string): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append("file", blob, fileName);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload", true);
+
+        xhr.upload.onprogress = (progressEvent) => {
+          if (progressEvent.lengthComputable) {
+            const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setChapterCurrentPageProgress(percentage);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              if (data.url) resolve(data.url);
+              else reject(new Error("URL олдсонгүй."));
+            } catch (err) {
+              reject(new Error("Хариу уншиж чадсангүй."));
+            }
+          } else {
+            reject(new Error(`Сервер алдаа заалаа: ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Сүлжээний алдаа гарлаа."));
+        xhr.send(formData);
+      });
+    };
+
+    try {
+      setChapterImagesUploading(true);
+      const uploadedUrls: string[] = [];
+      const totalFiles = files.length;
+
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        setChapterCurrentPageProgress(0); 
+        setChapterUploadProgress(`Боловсруулж байна: ${i + 1} / ${totalFiles}`);
+
+        try {
+          const compressedBlob = await compressImage(file);
+          const cleanFileName = `page_${i + 1}_${Date.now()}.jpg`;
+          const url = await uploadSingleFileXHR(compressedBlob, cleanFileName);
+          uploadedUrls.push(url);
+        } catch (singleFileError) {
+          console.error(`${file.name} файлыг R2 руу хуулахад алдаа гарлаа:`, singleFileError);
+        }
+      }
+
+      const currentImages = chapterForm.images ? chapterForm.images.split(",").map(u => u.trim()).filter(Boolean) : [];
+      const allImages = [...currentImages, ...uploadedUrls].join(",");
+
+      setChapterForm(prev => ({ ...prev, images: allImages }));
+      setChapterUploadProgress("Бүх зураг R2 руу амжилттай хуулагдлаа! 🎉");
+    } catch (err) {
+      console.error("Бүлгийн зураг хуулахад ерөнхий алдаа гарлаа:", err);
+      alert("Зураг хуулахад алдаа гарлаа.");
+    } finally {
+      setChapterImagesUploading(false);
+      setChapterCurrentPageProgress(0);
+      e.target.value = ""; 
+    }
+  };
+  // Манга үүсгэх болон хадгалах логик
   const [mangaForm, setMangaForm] = useState<MangaForm>({
     title: "", description: "", cover_image: "", banner_image: "",
     genres: "", status: "ongoing", is_banner: false, is18: false, is_free: false
   });
 
-  // 🚀 БҮЛГИЙН ОЛОН ЗУРАГ: Утаснаас олноор нь сонгоход шахахгүйгээр шууд R2 руу цувуулж хуулна
-  const handleChapterImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (!chapterForm.manga_id) {
-      alert("Зураг оруулахаас өмнө дээрх цэснээс Мангаа заавал сонгоно уу!");
-      e.target.value = "";
-      return;
-    }
-
-    try {
-      setChapterImagesUploading(true);
-      const totalFiles = files.length;
-      
-      const localUrls: string[] = [];
-      for (let i = 0; i < totalFiles; i++) {
-        localUrls.push(URL.createObjectURL(files[i]));
-      }
-      const currentImages = chapterForm.images ? chapterForm.images.split(",").map(u => u.trim()).filter(Boolean) : [];
-      setChapterForm(prev => ({ ...prev, images: [...currentImages, ...localUrls].join(",") }));
-
-      const uploadedUrls: string[] = [];
-      for (let i = 0; i < totalFiles; i++) {
-        // Шууд R2 руу илгээж байгааг харуулна
-        setChapterUploadProgress(`R2 руу илгээж байна: ${i + 1} / ${totalFiles} хуудас 🚀`);
-        
-        const formData = new FormData();
-        
-        // 🚀 УТАСНЫ НЭРНИЙ ХАМГААЛАЛТ: Нэрийг цэвэр англи болгоно
-        const fileExtension = files[i].name.split('.').pop() || 'jpg';
-        const cleanFileName = `page-${i}-${Date.now()}.${fileExtension}`;
-        const renamedFile = new File([files[i]], cleanFileName, { type: files[i].type });
-        
-        formData.append("file", renamedFile);
-
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          uploadedUrls.push(data.url);
-        } else {
-          uploadedUrls.push(localUrls[i]); 
-        }
-      }
-
-      const finalImages = [...currentImages, ...uploadedUrls].join(",");
-      setChapterForm(prev => ({ ...prev, images: finalImages }));
-      setChapterUploadProgress("Бүх зургийг амжилттай хууллаа! 🎉");
-      e.target.value = ""; 
-    } catch (err) {
-      console.error(err);
-      alert("Зураг хуулахад алдаа гарлаа.");
-      setChapterUploadProgress("");
-    } finally {
-      setChapterImagesUploading(false);
-    }
-  };
-  const moveImageOrder = (index: number, direction: "up" | "down") => {
-    if (!chapterForm.images) return;
-    const imagesArray = chapterForm.images.split(",").filter(Boolean);
-    
-    if (direction === "up" && index === 0) return; 
-    if (direction === "down" && index === imagesArray.length - 1) return; 
-
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    const temp = imagesArray[index];
-    imagesArray[index] = imagesArray[targetIndex];
-    imagesArray[targetIndex] = temp;
-
-    setChapterForm(prev => ({ ...prev, images: imagesArray.join(",") }));
-  };
-
-  const removeSpecificImage = (indexToRemove: number) => {
-    if (!chapterForm.images) return;
-    const imagesArray = chapterForm.images.split(",").filter(Boolean);
-    const updatedArray = imagesArray.filter((_, index) => index !== indexToRemove);
-    setChapterForm(prev => ({ ...prev, images: updatedArray.join(",") }));
-  };
-
-  // 🚀 БҮЛЭГ НЭМЭХ БОЛОН ЗАСАЖ ХАДГАЛАХ ЛОГИК
-  const [chapterForm, setChapterForm] = useState<ChapterForm>({
-    manga_id: "", chapter_number: 1, images: "", is_premium: false
-  });
-
-  // 🚀 ЗАСВАРЛАВ: Давхардсан функцийг нэгтгэж, буруу blob линк хадгалахаас бүрэн хамгаалсан ганц цэвэр функц болгов
   const handleAddManga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mangaForm.title.trim()) {
       return alert("Манганы Гарчгийг заавал бөглөнө үү!");
     }
-    
-    // 🚀 НЭМЭВ: Зураг цаанаа R2 руу хуулагдаж дуусахыс өмнө хадгалахыг гацаана
-    if (imageUploading) {
-      return alert("Зураг цаанаа Cloudflare R2 руу хуулагдаж байна. Түр хүлээгээд линк нь автоматаар инпут дээр гарч ирсний дараа хадгална уу!");
-    }
-
-    // 🚀 НЭМЭВ: Өгөгдлийн санг харлуулахаас сэргийлж түр зуурын blob линк хадгалахыг блокдоно
-    if (mangaForm.cover_image.startsWith("blob:") || mangaForm.banner_image.startsWith("blob:")) {
-      return alert("Зураг R2 руу хуулагдаж дуусаагүй байна. 1 секунд хүлээгээд дахин оролдоно уу.");
+    if (imageUploading || bannerUploading) {
+      return alert("Зураг ачааллаж байна, түр хүлээнэ үү!");
     }
 
     try {
-      const generatedId = generateMangaId(mangaForm.title);
+      const generatedId = mangaForm.title
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9_-]/g, "");
+
+      const newMangaId = isEditingManga ? oldMangaId : generatedId;
       const genresArray = mangaForm.genres.split(",").map(g => g.trim()).filter(g => g !== "");
-    
+      const automaticPlacement = mangaForm.is_banner ? "trending" : "none";
+
       const dataToSave = {
         title: mangaForm.title,
+        author: "Үл мэдэгдэх", 
         description: mangaForm.description,
         cover_image: mangaForm.cover_image || "/placeholder-cover.jpg",
-        banner_image: mangaForm.banner_image || "", 
+        banner_image: mangaForm.is_banner ? (mangaForm.banner_image || "/placeholder-banner.jpg") : "",
         genres: genresArray,
+        placement: automaticPlacement,
         status: mangaForm.status, 
         is_banner: mangaForm.is_banner,
         is18: mangaForm.is18,
         is_free: mangaForm.is_free,
-        views: isEditingManga ? mangas.find(m => m.id === oldMangaId)?.views || 0 : 0, 
-        rating: 5.0,
-        createdAt: isEditingManga ? mangas.find(m => m.id === oldMangaId)?.createdAt || new Date().toISOString() : new Date().toISOString()
+        views: 0,
+        rating: 5.0
       };
 
-      if (isEditingManga && oldMangaId !== generatedId) {
+      if (isEditingManga && oldMangaId !== newMangaId) {
         await deleteDoc(doc(db, "manga", oldMangaId));
       }
 
-      await setDoc(doc(db, "manga", generatedId), dataToSave);
+      await setDoc(doc(db, "manga", newMangaId), dataToSave);
       alert("Манга амжилттай хадгалагдлаа!");
-
-      const snap = await getDocs(collection(db, "manga"));
-      setMangas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       
       setMangaForm({ title: "", description: "", cover_image: "", banner_image: "", genres: "", status: "ongoing", is_banner: false, is18: false, is_free: false });
       setIsEditingManga(false);
@@ -480,21 +541,46 @@ export default function AdminPage() {
       alert("Манга хадгалахад алдаа гарлаа.");
     }
   };
+
   const handleDeleteManga = async (id: string) => {
     if (!confirm("Энэ manga-г бүрмөсөн устгахдаа итгэлтэй байна уу?")) return;
     try {
       await deleteDoc(doc(db, "manga", id));
       alert("Манга амжилттай устлаа!");
-      setMangas(mangas.filter(m => m.id !== id));
+      setMangas(prev => prev.filter(m => m.id !== id));
+      if (selectedMangaForChapters === id) {
+        setSelectedMangaForChapters("");
+      }
     } catch (error) {
+      console.error(error);
       alert("Устгахад алдаа гарлаа.");
     }
   };
 
+  // Тухайн сонгосон бүлгийг (Chapter) бүрмөсөн устгах логик
+  const handleDeleteChapter = async (chapterDocId: string, chapterNumber: number) => {
+    if (!confirm(`Бүлэг ${chapterNumber}-ийг бүрмөсөн устгахдаа итгэлтэй байна уу?`)) return;
+    try {
+      await deleteDoc(doc(db, "chapters", chapterDocId));
+      alert("Бүлэг амжилттай устлаа!");
+    } catch (error) {
+      console.error("Бүлэг устгахад алдаа гарлаа:", error);
+      alert("Бүлэг устгахад алдаа гарлаа.");
+    }
+  };
+
+  // Бүлэг нэмэх логик
+  const [chapterForm, setChapterForm] = useState<ChapterForm>({
+    manga_id: "", chapter_number: 1, images: "", is_premium: false
+  });
+
   const handleAddChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chapterForm.manga_id || !chapterForm.chapter_number) {
-      return alert("Мангаа сонгож, Бүлгийн дугаарыг заавал оруулна үү!");
+      return alert("Манга болон Бүлгийн дугаарыг заавал сонгоно уу!");
+    }
+    if (chapterImagesUploading) {
+      return alert("Зургууд хуулагдаж байна, түр хүлээнэ үү!");
     }
 
     try {
@@ -507,42 +593,25 @@ export default function AdminPage() {
         return alert("Бүлгийн зургуудын линкийг заавал оруулна үү!");
       }
 
-      const dataToSave = {
-        manga_id: chapterForm.manga_id,
+      await addDoc(collection(db, "chapters"), {
+        manga_id: chapterForm.manga_id.trim().toLowerCase(),
         chapter_number: Number(chapterForm.chapter_number),
+        title: `Бүлэг ${chapterForm.chapter_number}`, 
         images: imagesArray,
         is_premium: chapterForm.is_premium, 
-        createdAt: isEditingChapter ? chapters.find(c => c.id === chapterForm.id)?.createdAt || new Date().toISOString() : new Date().toISOString()
-      };
+        createdAt: new Date().toISOString()
+      });
 
-      if (isEditingChapter && chapterForm.id) {
-        await setDoc(doc(db, "chapters", chapterForm.id), dataToSave);
-        alert(`Бүлэг ${chapterForm.chapter_number} амжилттай засагдлаа!`);
-      } else {
-        await addDoc(collection(db, "chapters"), dataToSave);
-        alert(`Бүлэг ${chapterForm.chapter_number} амжилттай нэмэгдлээ!`);
-      }
-
+      alert(`Бүлэг ${chapterForm.chapter_number} амжилттай нэмэгдлээ!`);
       setChapterForm({
-        manga_id: "",
+        manga_id: chapterForm.manga_id, 
         chapter_number: Number(chapterForm.chapter_number) + 1, 
         images: "", is_premium: false
       });
-      setIsEditingChapter(false);
       setChapterUploadProgress("");
     } catch (error) {
       console.error(error);
-      alert("Бүлэг хадгалахад алдаа гарлаа.");
-    }
-  };
-
-  const handleDeleteChapter = async (id: string) => {
-    if (!confirm("Энэ бүлгийг устгахдаа итгэлтэй байна уу?")) return;
-    try {
-      await deleteDoc(doc(db, "chapters", id));
-      alert("Бүлэг амжилттай устлаа!");
-    } catch (error) {
-      alert("Бүлэг устгахад алдаа гарлаа.");
+      alert("Бүлэг нэмэхэд алдаа гарлаа.");
     }
   };
 
@@ -553,6 +622,7 @@ export default function AdminPage() {
       </main>
     );
   }
+
   if (!isAdmin) {
     return (
       <main className="min-h-screen bg-[#0B0F14] flex items-center justify-center p-4">
@@ -563,7 +633,7 @@ export default function AdminPage() {
             </div>
             <h2 className="mt-4 text-xl font-black uppercase tracking-wider text-gray-200">Админ самбар</h2>
             <p className="mt-1.5 text-[11px] text-gray-500 leading-relaxed px-4">
-              Clover Manga-ийн зөвшөөрөгдсөн админууд Gmail болон Нууц үгээрээ нэвтрэнэ үү.
+              Clover Manga-ийн зөвшөөрөгдсөн adm-ууд Gmail болон Нууц үгээрээ нэвтрэнэ үү.
             </p>
           </div>
 
@@ -588,7 +658,7 @@ export default function AdminPage() {
               </div>
             </div>
             <div>
-              <label className="block mb-1.5 font-bold text-gray-400">Нууц үг (Password):</label>
+              <label className="block mb-1.5 font-bold text-gray-400">Nuuts ug (Password):</label>
               <div className="relative">
                 <input
                   type="password"
@@ -600,21 +670,19 @@ export default function AdminPage() {
                 <LockIcon className="absolute left-3 top-3.5 text-gray-600" size={14} />
               </div>
             </div>
-
             <button
               type="submit"
-              className="w-full rounded-2xl bg-green-500 py-3.5 text-xs font-black text-black transition-all hover:bg-green-400 active:scale-[0.99] uppercase tracking-widest font-black shadow-lg shadow-green-500/10 mt-2"
+              className="w-full rounded-2xl bg-green-500 py-3.5 text-xs font-black text-black transition-all hover:bg-green-400 active:scale-[0.99] uppercase tracking-widest shadow-lg shadow-green-500/10 mt-2"
             >
-              Нэвтрэх
+              Nevtreh
             </button>
           </form>
         </div>
       </main>
     );
   }
-
   return (
-    <main className="min-h-screen bg-[#0B0F14] text-white">
+    <main className="min-h-screen bg-[#0B0F14] text-white selection:bg-green-500/30 selection:text-green-300">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[#1E2530] bg-[#141922]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-8">
@@ -630,7 +698,7 @@ export default function AdminPage() {
 
           <div className="flex items-center gap-4">
             <div className="hidden text-right md:block">
-              <p className="text-xs font-bold text-gray-200">{profileName}</p>
+              <p className="text-xs font-bold text-gray-200">{user?.displayName || "Админ"}</p>
               <p className="text-[10px] text-gray-500">{user?.email}</p>
             </div>
             <button
@@ -644,6 +712,7 @@ export default function AdminPage() {
           </div>
         </div>
       </header>
+
       {/* Үндсэн агуулга */}
       <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-8">
         
@@ -670,8 +739,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-[#232A35] WebkitOverflowScrolling-touch">
+            <table className="w-full text-left text-xs border-collapse min-w-[600px]">
               <thead>
                 <tr className="border-b border-[#232A35] text-gray-500 font-bold uppercase tracking-wider">
                   <th className="py-3 px-4">Хэрэглэгч</th>
@@ -688,7 +757,7 @@ export default function AdminPage() {
                     const emailMatch = (u.email || "").toLowerCase().includes(userSearchQuery.toLowerCase());
                     return nameMatch || emailMatch;
                   })
-                  .slice(0, viewAllUsers ? allUsers.length : 5)
+                  .slice(0, visibleUsersCount)
                   .map((u) => {
                     const hasVip = u.accessType === "Premium" || u.accessType === "premium";
                     const isExpired = u.accessEnd ? new Date() > new Date(u.accessEnd) : true;
@@ -711,27 +780,17 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedUserForEdit(u);
-                                setEditCoinsAmount(u.coins || 0);
-                                setEditAccessType(u.accessType || "Free");
-                              }}
-                              className="rounded-lg border border-[#232A35] bg-[#0B0F14] px-3 py-1.5 text-[11px] font-bold text-green-400 hover:border-green-500 hover:bg-green-500/5 transition active:scale-95"
-                            >
-                              Засах
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUserFromDb(u.uid)}
-                              className="rounded-lg border border-[#232A35] bg-[#0B0F14] p-1.5 text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition active:scale-95"
-                              title="Өгөгдлийн сангаас устгах"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedUserForEdit(u);
+                              setEditCoinsAmount(u.coins || 0);
+                              setEditAccessType(u.accessType || "Free");
+                            }}
+                            className="rounded-lg border border-[#232A35] bg-[#0B0F14] px-3 py-1.5 text-[11px] font-bold text-green-400 hover:border-green-500 hover:bg-green-500/5 transition active:scale-95"
+                          >
+                            Засах
+                          </button>
                         </td>
                       </tr>
                     );
@@ -740,18 +799,14 @@ export default function AdminPage() {
             </table>
           </div>
 
-          {allUsers.length > 5 && (
-            <div className="flex justify-center pt-2 border-t border-[#232A35]/30">
+          {allUsers.length > visibleUsersCount && (
+            <div className="pt-2 text-center">
               <button
                 type="button"
-                onClick={() => setViewAllUsers(!viewAllUsers)}
-                className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400 hover:text-green-400 transition"
+                onClick={() => setVisibleUsersCount(prev => prev + 10)}
+                className="rounded-xl border border-[#232A35] bg-[#0B0F14] px-5 py-2.5 text-xs font-bold text-gray-400 hover:text-white hover:border-gray-600 transition active:scale-95"
               >
-                {viewAllUsers ? (
-                  <>Хумих <ChevronUp size={14} /></>
-                ) : (
-                  <>Бүгдийг харах ({allUsers.length}) <ChevronDown size={14} /></>
-                )}
+                Бусад хэрэглэгчдийг харах
               </button>
             </div>
           )}
@@ -763,18 +818,37 @@ export default function AdminPage() {
               <FolderPlus size={18} className="text-green-400" /> {isEditingManga ? "Манга засах" : "Шинэ манга нэмэх"}
             </h2>
             <form onSubmit={handleAddManga} className="space-y-4 text-xs font-semibold text-gray-400">
-              <div>
-                <label className="block mb-1.5">Манганы нэр (Title):</label>
-                <input
-                  type="text"
-                  value={mangaForm.title}
-                  placeholder="Манганы гарчгийг оруулна уу"
-                  onChange={(e) => setMangaForm({ ...mangaForm, title: e.target.value })}
-                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold"
-                />
-                {!isEditingManga && mangaForm.title && (
-                  <p className="mt-1 text-[10px] text-gray-500 font-mono">Автомат ID: {generateMangaId(mangaForm.title)}</p>
-                )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block mb-1.5">Манганы нэр (Title):</label>
+                  <input
+                    type="text"
+                    value={mangaForm.title}
+                    onChange={(e) => setMangaForm({ ...mangaForm, title: e.target.value })}
+                    placeholder="Жишээ нь: Solo Leveling"
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold"
+                  />
+                  {!isEditingManga && mangaForm.title && (
+                    <p className="mt-1 text-[10px] text-gray-500 font-mono">
+                      Үүсэх автомат ID: {mangaForm.title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block mb-1.5">Төлөв (Status):</label>
+                  <select
+                    value={mangaForm.status}
+                    onChange={(e) => setMangaForm({ ...mangaForm, status: e.target.value as any })}
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold cursor-pointer"
+                  >
+                    <option value="ongoing">Гарч байгаа (Ongoing)</option>
+                    <option value="paused">Зогссон (Paused)</option>
+                    <option value="completed">Дууссан (Completed)</option>
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -788,91 +862,39 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Ковер зураг шууд уpload хийх UI */}
+              {/* Ковер зургийн Progress Bar харагдац */}
               <div>
-                <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг (Утаснаас шууд хуулах):</label>
-                <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
-                    <ImageIcon size={16} />
-                    <span>Зураг сонгох</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+                <label className="block mb-1.5 text-green-400 font-bold">Манганы Ковер Зураг:</label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="flex flex-1 items-center gap-2 justify-center rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
+                      <ImageIcon size={16} />
+                      <span>Ковер зураг сонгох</span>
+                      <input
+                        type="file"
+                        accept="image/*,image/heic,image/heif,image/jpeg,image/png,image/webp"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={imageUploading}
+                      />
+                    </label>
+                    {imageUploading && <Loader2 size={16} className="animate-spin text-green-500" />}
+                    {mangaForm.cover_image && (
+                      <img src={mangaForm.cover_image} alt="Preview" className="h-12 w-12 rounded-lg object-cover border border-[#232A35]" />
+                    )}
+                  </div>
                   
-                  {imageUploading && chapterUploadProgress && !mangaForm.is_banner && (
-                    <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
-                      <Loader2 size={14} className="animate-spin text-green-500" />
-                      <span>{chapterUploadProgress}</span>
-                    </div>
-                  )}
-
-                  {mangaForm.cover_image && (
-                    <div className="relative w-28 aspect-[3/4] rounded-xl overflow-hidden bg-[#0B0F14] border border-[#232A35] shadow-md">
-                      <img src={mangaForm.cover_image} alt="Preview" className="w-full h-full object-cover" />
+                  {imageUploading && (
+                    <div className="w-full bg-[#0B0F14] rounded-full h-2 border border-[#232A35] overflow-hidden">
+                      <div 
+                        className="bg-green-500 h-full transition-all duration-150 rounded-full" 
+                        style={{ width: `${coverUploadProgress}%` }}
+                      ></div>
+                      <p className="text-[10px] text-green-400 font-bold mt-1 text-right">Хуулж байна: {coverUploadProgress}%</p>
                     </div>
                   )}
                 </div>
               </div>
-
-              <div>
-                <label className="block mb-1.5">Зургийн линк (URL - Автоматаар бөглөгдөнө):</label>
-                <input
-                  type="text"
-                  value={mangaForm.cover_image}
-                  onChange={(e) => setMangaForm({ ...mangaForm, cover_image: e.target.value })}
-                  placeholder="https://link.jpg"
-                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-mono text-[10px]"
-                />
-              </div>
-
-              {/* Баннер зураг шууд уpload хийх UI */}
-              {mangaForm.is_banner && (
-                <div className="border border-green-500/20 bg-green-500/5 p-4 rounded-2xl space-y-4 animate-fadeIn">
-                  <div>
-                    <label className="block mb-1.5 text-green-400 font-bold">Манганы урт Баннер Зураг (Landscape):</label>
-                    <div className="flex flex-col gap-3">
-                      <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-3 text-gray-400 cursor-pointer hover:border-green-500/50 transition duration-150">
-                        <ImageIcon size={16} />
-                        <span>Баннер зураг сонгох</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleBannerImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      
-                      {imageUploading && chapterUploadProgress && mangaForm.banner_image && (
-                        <div className="text-xs font-bold text-green-400 flex items-center gap-2 animate-pulse bg-green-500/5 p-2.5 rounded-xl border border-green-500/10">
-                          <Loader2 size={14} className="animate-spin text-green-500" />
-                          <span>{chapterUploadProgress}</span>
-                        </div>
-                      )}
-
-                      {mangaForm.banner_image && (
-                        <div className="relative w-full aspect-[21/9] rounded-xl overflow-hidden bg-[#0B0F14] border border-[#232A35] shadow-md">
-                          <img src={mangaForm.banner_image} alt="Banner Preview" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block mb-1.5">Баннер зургийн линк (URL - Автоматаар бөглөгдөнө):</label>
-                    <input
-                      type="text"
-                      value={mangaForm.banner_image}
-                      onChange={(e) => setMangaForm({ ...mangaForm, banner_image: e.target.value })}
-                      placeholder="https://link-banner.jpg"
-                      className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-mono text-[10px]"
-                    />
-                  </div>
-                </div>
-              )}
 
               <div>
                 <label className="block mb-1.5">Тайлбар (Description):</label>
@@ -884,20 +906,8 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div>
-                <label className="block mb-1.5">Төлөв (Status):</label>
-                <select
-                  value={mangaForm.status}
-                  onChange={(e) => setMangaForm({ ...mangaForm, status: mangaForm.status || (e.target.value as any) })}
-                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold"
-                >
-                  <option value="ongoing">Үргэлжилж байгаа (Ongoing)</option>
-                  <option value="completed">Дууссан (Completed)</option>
-                  <option value="paused">Зогссон (Paused)</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2 pt-1">
+              {/* Чекбоксууд: Баннер, +18, Үнэгүй */}
+              <div className="flex flex-col gap-2 pt-1 border-t border-[#232A35]/40 mt-2">
                 <label className="flex items-center gap-2 cursor-pointer font-bold select-none text-white">
                   <input
                     type="checkbox"
@@ -907,6 +917,42 @@ export default function AdminPage() {
                   />
                   Баннер болгох
                 </label>
+
+                {mangaForm.is_banner && (
+                  <div className="pl-6 py-2 border-l-2 border-green-500/30 space-y-2 animate-fadeIn">
+                    <label className="block text-[11px] text-green-400 font-bold">Хэвтээ урт баннер зураг (1920x1080):</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <label className="flex flex-1 items-center gap-2 justify-center rounded-xl border border-dashed border-green-500/20 bg-[#0B0F14] px-4 py-2.5 text-gray-400 cursor-pointer hover:border-green-500/40 transition duration-150 text-[11px]">
+                          <ImageIcon size={14} />
+                          <span>Баннер зураг сонгох</span>
+                          <input
+                            type="file"
+                            accept="image/*,image/heic,image/heif,image/jpeg,image/png,image/webp"
+                            onChange={handleBannerUpload}
+                            className="hidden"
+                            disabled={bannerUploading}
+                          />
+                        </label>
+                        {bannerUploading && <Loader2 size={14} className="animate-spin text-green-500" />}
+                        {mangaForm.banner_image && (
+                          <img src={mangaForm.banner_image} alt="Banner Preview" className="h-10 w-20 rounded-lg object-cover border border-[#232A35]" />
+                        )}
+                      </div>
+
+                      {bannerUploading && (
+                        <div className="w-full bg-[#0B0F14] rounded-full h-1.5 border border-[#232A35] overflow-hidden">
+                          <div 
+                            className="bg-green-500 h-full transition-all duration-150 rounded-full" 
+                            style={{ width: `${bannerUploadProgress}%` }}
+                          ></div>
+                          <p className="text-[9px] text-green-400 font-bold mt-1 text-right">Хуулж байна: {bannerUploadProgress}%</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <label className="flex items-center gap-2 cursor-pointer font-bold select-none text-red-400">
                   <input
                     type="checkbox"
@@ -916,14 +962,15 @@ export default function AdminPage() {
                   />
                   +18 Насны хязгаартай
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer font-bold select-none text-green-400">
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold select-none text-blue-400">
                   <input
                     type="checkbox"
                     checked={mangaForm.is_free}
                     onChange={(e) => setMangaForm({ ...mangaForm, is_free: e.target.checked })}
-                    className="h-4 w-4 rounded border-[#232A35] bg-[#0B0F14] text-green-500 focus:ring-0 cursor-pointer"
+                    className="h-4 w-4 rounded border-[#232A35] bg-[#0B0F14] text-blue-500 focus:ring-0 cursor-pointer"
                   />
-                  Үнэн үнэгүй унших (Free)
+                  Үнэгүй унших сайтын хэсэгт харуулах (Is Free)
                 </label>
               </div>
 
@@ -938,104 +985,84 @@ export default function AdminPage() {
           {/* БҮЛЭГ НЭМЭХ ХЭСЭГ */}
           <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
-              <PlusCircle size={18} className="text-green-400" /> {isEditingChapter ? "Бүлэг засах" : "Шинэ бүлэг нэмэх"}
+              <PlusCircle size={18} className="text-green-400" /> Шинэ бүлэг нэмэх (Chapter)
             </h2>
             <form onSubmit={handleAddChapter} className="space-y-4 text-xs font-semibold text-gray-400">
-              <div>
-                <label className="block mb-1.5 font-bold text-gray-300">Манга сонгох:</label>
-                <select
-                  value={chapterForm.manga_id}
-                  onChange={(e) => setChapterForm({ ...chapterForm, manga_id: e.target.value })}
-                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold cursor-pointer"
-                >
-                  <option value="">-- Мангаа сонгоно уу --</option>
-                  {mangas.map((m) => (
-                    <option key={`dropdown-manga-${m.id}`} value={m.id}>
-                      {m.title} ({m.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block mb-1.5">Бүлгийн дугаар (Chapter Number):</label>
-                <input
-                  type="number"
-                  value={chapterForm.chapter_number}
-                  onChange={(e) => setChapterForm({ ...chapterForm, chapter_number: parseInt(e.target.value) || 1 })}
-                  className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold"
-                />
-              </div>
-
-              {/* Олноор зураг сонгох шууд хуулалт */}
-              <div>
-                <label className="block mb-1.5 text-green-400 font-bold">Манганы хуудсууд (Утаснаас олноор нь шууд хуулах):</label>
-                <label className="flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-4 text-gray-400 cursor-pointer hover:border-green-500/50 transition">
-                  <ImageIcon size={18} />
-                  <span>Манганы бүх хуудсыг зэрэг сонгох</span>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block mb-1.5">Манга сонгох:</label>
+                  <select
+                    value={chapterForm.manga_id}
+                    onChange={(e) => setChapterForm({ ...chapterForm, manga_id: e.target.value })}
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold cursor-pointer"
+                  >
+                    <option value="">--- Манга сонгох ---</option>
+                    {mangas.map((m) => (
+                      <option key={`select-manga-opt-${m.id}`} value={m.id}>
+                        {m.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1.5">Бүлгийн дугаар (Chapter Number):</label>
                   <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleChapterImagesUpload}
-                    className="hidden"
-                    disabled={chapterImagesUploading}
+                    type="number"
+                    value={chapterForm.chapter_number}
+                    onChange={(e) => setChapterForm({ ...chapterForm, chapter_number: parseInt(e.target.value) || 1 })}
+                    className="w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2.5 text-white outline-none focus:border-green-500 font-bold"
                   />
-                </label>
-                {chapterUploadProgress && (
-                  <p className="mt-2 text-xs font-bold text-green-400 animate-pulse">{chapterUploadProgress}</p>
-                )}
+                </div>
               </div>
 
-              {chapterForm.images && (
-                <div className="mt-4 border-t border-[#232A35]/60 pt-4 space-y-3">
-                  <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                    Хуудасны дараалал ({chapterForm.images.split(",").filter(Boolean).length} хуудас)
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1 scrollbar-thin">
-                    {chapterForm.images.split(",").filter(Boolean).map((url, index, arr) => (
-                      <div key={`preview-image-${index}`} className="relative bg-[#0B0F14] rounded-xl border border-[#232A35] p-1.5 flex flex-col items-center shadow-md">
-                        <div className="absolute top-2 left-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-black text-black">
-                          {index + 1}
-                        </div>
-                        <div className="w-full aspect-[2/3] rounded-lg overflow-hidden bg-[#141922]">
-                          <img src={url} alt={`Page ${index + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex items-center justify-between w-full mt-1.5 pt-1.5 border-t border-white/5 gap-1">
-                          <div className="flex gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => moveImageOrder(index, "up")}
-                              disabled={index === 0}
-                              className="p-1 rounded bg-[#141922] border border-[#232A35] text-gray-400 hover:text-white disabled:opacity-20 transition"
-                            >
-                              <ChevronUp size={10} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveImageOrder(index, "down")}
-                              disabled={index === arr.length - 1}
-                              className="p-1 rounded bg-[#141922] border border-[#232A35] text-gray-400 hover:text-white disabled:opacity-20 transition"
-                            >
-                              <ChevronDown size={10} />
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSpecificImage(index)}
-                            className="p-1 rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
+              {/* Олон хуудасны ухаалаг Progress Bar */}
+              <div>
+                <label className="block mb-1.5 text-green-400 font-bold">Манганы хуудсууд (Утаснаас олноор нь зэрэг сонгох):</label>
+                <div className="space-y-3">
+                  <label className={`flex items-center gap-2 justify-center w-full rounded-xl border border-dashed border-[#232A35] bg-[#0B0F14] px-4 py-4 text-gray-400 cursor-pointer hover:border-green-500/50 transition ${chapterImagesUploading ? "opacity-50 cursor-not-allowed" : ""}`}>
+                    <ImageIcon size={18} />
+                    <span>Манганы бүх хуудсыг зэрэг сонгох</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,image/heic,image/heif,image/jpeg,image/png,image/webp"
+                      onChange={handleChapterImagesUpload}
+                      className="hidden"
+                      disabled={chapterImagesUploading}
+                    />
+                  </label>
+
+                  {chapterImagesUploading && (
+                    <div className="p-3 rounded-xl bg-[#0B0F14] border border-[#232A35] space-y-2">
+                      <div className="flex justify-between items-center text-[11px] font-bold text-gray-400">
+                        <span className="text-green-400 animate-pulse">{chapterUploadProgress}</span>
+                        <span>{chapterCurrentPageProgress}%</span>
+                      </div>
+                      <div className="w-full bg-[#141922] rounded-full h-2 overflow-hidden border border-[#232A35]/60">
+                        <div 
+                          className="bg-green-500 h-full transition-all duration-150 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.5)]" 
+                          style={{ width: `${chapterCurrentPageProgress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {chapterForm.images && (
+                  <div className="mt-3 p-3 rounded-xl bg-[#0B0F14] border border-[#232A35] max-h-40 overflow-y-auto space-y-1.5 scrollbar-thin">
+                    <p className="text-[10px] uppercase font-bold text-gray-500 border-b border-[#232A35] pb-1 mb-2">Хуулагдсан зургуудын дараалал:</p>
+                    {chapterForm.images.split(",").map((url, index) => (
+                      <div key={`loaded-page-idx-${index}`} className="flex items-center justify-between text-[11px] font-medium text-gray-400 bg-[#141922] px-2.5 py-1 rounded-lg border border-[#232A35]/40">
+                        <span className="text-gray-300 font-bold">Хуудас {index + 1}</span>
+                        <span className="text-[10px] text-gray-600 font-mono truncate max-w-[180px]">{url}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               <div>
-                <label className="block mb-1.5">Зургийн линкүүд (Таслалаар заагласан URL - Автоматаар бөглөгдөнө):</label>
+                <label className="block mb-1.5">Эсвэл зургийн линкүүд (Таслалаар заагласан URL):</label>
                 <textarea
                   rows={2}
                   value={chapterForm.images}
@@ -1059,14 +1086,71 @@ export default function AdminPage() {
 
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-green-500 py-3 text-xs font-black text-black hover:bg-green-400 transition"
+                disabled={chapterImagesUploading}
+                className={`w-full rounded-2xl bg-green-500 py-3 text-xs font-black text-black hover:bg-green-400 transition ${chapterImagesUploading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                {isEditingChapter ? "Өөрчлөлтийг хадгалах" : "Бүлэг нэмэх"}
+                {chapterImagesUploading ? "Зургууд хуулагдаж байна..." : "Бүлэг нэмэх"}
               </button>
             </form>
           </div>
         </div>
-        {/* МАНГАНУУДЫН ЖАГСААЛТ ХАРАГДАХ ХЭСЭГ */}
+        {/* БҮЛГҮҮДИЙГ ХЯНАХ БОЛОН УСТГАХ УХААЛАГ СЕКЦ */}
+        <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#232A35] pb-4">
+            <div className="flex items-center gap-2">
+              <Layers className="text-green-400" size={20} />
+              <div>
+                <h2 className="text-base font-bold uppercase tracking-wider">Манганы бүлгүүд удирдах</h2>
+                <p className="text-[10px] text-gray-500 font-medium mt-0.5">Мангаг сонгож орсон бүлгүүдийг устгана уу</p>
+              </div>
+            </div>
+            <select
+              value={selectedMangaForChapters}
+              onChange={(e) => setSelectedMangaForChapters(e.target.value)}
+              className="max-w-xs w-full rounded-xl border border-[#232A35] bg-[#0B0F14] px-3.5 py-2 text-xs text-white font-bold cursor-pointer"
+            >
+              <option value="">-- Бүлгийг нь үзэх Мангаг сонгох --</option>
+              {mangas.map((m) => (
+                <option key={`manga-select-chapters-list-${m.id}`} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedMangaForChapters && (
+            <div className="overflow-x-auto">
+              {chaptersLoading ? (
+                <div className="text-center py-6 text-xs text-gray-500 font-bold animate-pulse flex items-center justify-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-green-500" /> Бүлгүүдийг татаж байна...
+                </div>
+              ) : chaptersList.length === 0 ? (
+                <p className="text-center py-6 text-xs text-gray-600 font-bold">Энэ манга дээр одоогоор ямар ч бүлэг нэмэгдээгүй байна.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 pt-1">
+                  {chaptersList.map((ch) => (
+                    <div key={ch.id} className="flex items-center justify-between p-3 rounded-xl bg-[#0B0F14] border border-[#232A35]/80 hover:border-[#232A35] transition duration-150">
+                      <div>
+                        <p className="text-xs font-bold text-gray-200">Бүлэг {ch.chapter_number}</p>
+                        <p className="text-[9px] text-gray-500 font-mono mt-0.5">{ch.images?.length || 0} хуудастай • {ch.is_premium ? "💎 VIP" : "Үнэгүй"}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteChapter(ch.id, ch.chapter_number)}
+                        className="rounded-lg bg-[#141922] border border-[#232A35] p-2 text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition active:scale-95"
+                        title="Бүлэг устгах"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* НИЙТ МАНГАНУУДЫН ЖАГСААЛТ ХАРАГДАХ ХЭСЭГ */}
         <div className="rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-xl space-y-4">
           <h2 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
             <BookOpen size={18} className="text-green-400" /> Нийт манганууд ({mangas.length})
@@ -1085,76 +1169,29 @@ export default function AdminPage() {
                 <div>
                   <h3 className="font-bold text-sm text-gray-200 line-clamp-1">{m.title}</h3>
                   <p className="text-[10px] text-gray-500 font-mono mt-0.5">ID: {m.id}</p>
-                  <p className="text-[9px] text-green-400 font-bold mt-1">👁️ Хандалт: {m.views || 0}</p>
                 </div>
-
-                {/* БҮЛЭГ ЗАСАХ / УСТГАХ ХЭСЭГ */}
-                <div className="mt-2 space-y-1">
-                  <p className="text-[9px] text-gray-500 font-bold uppercase">Бүлгүүд засах:</p>
-                  <div className="max-h-24 overflow-y-auto space-y-1 pr-1 border border-[#232A35]/30 p-1.5 rounded-lg bg-[#0B0F14]/50">
-                    {chapters
-                      .filter(c => c.manga_id === m.id)
-                      .sort((a, b) => b.chapter_number - a.chapter_number) 
-                      .map(c => (
-                        <div key={c.id} className="flex items-center justify-between bg-[#141922] p-1 rounded border border-[#232A35]/40 text-[10px]">
-                          <span className="font-bold text-gray-300">Ch {c.chapter_number}</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsEditingChapter(true);
-                                setChapterForm({
-                                  id: c.id,
-                                  manga_id: c.manga_id,
-                                  chapter_number: c.chapter_number,
-                                  images: Array.isArray(c.images) ? c.images.join(", ") : "",
-                                  is_premium: c.is_premium || false
-                                });
-                                window.scrollTo({ top: 500, behavior: 'smooth' });
-                              }}
-                              className="text-blue-400 hover:text-blue-300 font-bold"
-                            >
-                              Засах
-                            </button>
-                            <span className="text-gray-600">|</span>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteChapter(c.id)}
-                              className="text-red-400 hover:text-red-300 font-bold"
-                            >
-                              Устгах
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    {chapters.filter(c => c.manga_id === m.id).length === 0 && (
-                      <p className="text-[9px] text-gray-600 italic text-center py-1">Бүлэг байхгүй</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-[#232A35]/60">
+                <div className="flex items-center gap-2 pt-1 border-t border-[#232A35]/60">
                   <button
                     type="button"
                     onClick={() => {
                       setIsEditingManga(true);
                       setOldMangaId(m.id);
                       setMangaForm({
-                        title: m.title, 
+                        title: m.title,
                         description: m.description || "",
-                        cover_image: m.cover_image, 
+                        cover_image: m.cover_image,
                         banner_image: m.banner_image || "", 
                         genres: Array.isArray(m.genres) ? m.genres.join(", ") : "",
-                        status: m.status || "ongoing", 
-                        is_banner: m.is_banner || false, 
-                        is18: m.is18 || false, 
-                        is_free: m.is_free || false
+                        status: m.status || "ongoing",
+                        is_banner: m.is_banner || false,
+                        is18: m.is18 || false,
+                        is_free: m.is_free || false 
                       });
                       window.scrollTo({ top: 400, behavior: 'smooth' });
                     }}
                     className="flex-1 rounded-lg bg-[#141922] border border-[#232A35] py-1.5 text-[10px] font-bold text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/5 transition flex items-center justify-center gap-1"
                   >
-                    <Edit3 size={12} /> : Манга засах
+                    <Edit3 size={12} /> Засах
                   </button>
                   <button
                     type="button"
@@ -1168,12 +1205,12 @@ export default function AdminPage() {
             ))}
           </div>
         </div>
-
       </div> {/* Үндсэн агуулга хаах div */}
-      {/* ГИШҮҮНИЙ МЭДЭЭЛЭЛ ЗАСАХ ПОПАП ЦОНХ */}
+
+      {/* ГИШҮҮНИЙ МЭДЭЭЛЭЛ ЗАСАХ УХААЛАГ ПОПАП ЦОНХ */}
       {selectedUserForEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="w-full max-w-sm rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-xs my-auto">
             <div className="flex items-center gap-2 border-b border-[#232A35] pb-3 mb-4">
               <ShieldCheck className="text-green-400" size={20} />
               <div>
@@ -1240,48 +1277,6 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* 🔔 БАТАЛГААЖУУЛАХ ПОПАП ЦОНХ */}
-      {isConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="w-full max-w-xs rounded-3xl border border-[#232A35] bg-[#141922] p-6 shadow-2xl text-center space-y-4">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-              <ShieldAlert size={20} />
-            </div>
-            
-            <div className="space-y-1">
-              <h4 className="text-sm font-black uppercase tracking-wider text-gray-200">Үйлдэл баталгаажуулах</h4>
-              <p className="text-[11px] text-gray-400 leading-relaxed font-bold px-2">
-                {confirmMessage}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConfirmOpen(false);
-                  setPendingActionType(null);
-                }}
-                className="flex-1 rounded-xl border border-[#232A35] bg-[#0B0F14] py-2.5 font-bold text-gray-400 hover:text-white transition active:scale-95"
-              >
-                Цуцлах
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (pendingActionType === "coins") {
-                    executeUserWalletUpdate();
-                  }
-                }}
-                className="flex-1 rounded-xl bg-green-500 py-2.5 font-black text-black hover:bg-green-400 transition active:scale-95"
-              >
-                Зөвшөөрөх
-              </button>
-            </div>
           </div>
         </div>
       )}
